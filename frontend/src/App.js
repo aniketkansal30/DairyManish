@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 // ─── API BASE URL ─────────────────────────────────────────────────────────────
 const API = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
@@ -17,30 +17,6 @@ async function apiCall(path, method = "GET", body = null) {
   }
   return res.json();
 }
-
-// ─── INITIAL DATA ─────────────────────────────────────────────────────────────
-const INITIAL_PRODUCTS = [
-  { id: "p1", name: "Paneer", category: "Dairy", price: 400, cost: 280, unit: "kg" },
-  { id: "p2", name: "Doodh (Full Cream)", category: "Dairy", price: 60, cost: 42, unit: "litre" },
-  { id: "p3", name: "Dahi", category: "Dairy", price: 80, cost: 55, unit: "kg" },
-  { id: "p4", name: "Makhan", category: "Dairy", price: 500, cost: 360, unit: "kg" },
-  { id: "p5", name: "Ghee", category: "Dairy", price: 600, cost: 440, unit: "kg" },
-  { id: "p6", name: "Lassi", category: "Dairy", price: 30, cost: 18, unit: "piece" },
-  { id: "p7", name: "Gulab Jamun", category: "Sweets", price: 320, cost: 200, unit: "kg" },
-  { id: "p8", name: "Barfi", category: "Sweets", price: 400, cost: 260, unit: "kg" },
-  { id: "p9", name: "Halwa", category: "Sweets", price: 250, cost: 160, unit: "kg" },
-  { id: "p10", name: "Rasgulla", category: "Sweets", price: 280, cost: 180, unit: "kg" },
-  { id: "p11", name: "Jalebi", category: "Sweets", price: 200, cost: 120, unit: "kg" },
-  { id: "p12", name: "Samosa", category: "Snacks", price: 15, cost: 8, unit: "piece" },
-  { id: "p13", name: "Kachori", category: "Snacks", price: 12, cost: 6, unit: "piece" },
-  { id: "p14", name: "Pakora", category: "Snacks", price: 200, cost: 100, unit: "kg" },
-  { id: "p15", name: "Bread Pakora", category: "Snacks", price: 25, cost: 14, unit: "piece" },
-  { id: "p16", name: "Tandoori Roti", category: "Tandoor", price: 10, cost: 5, unit: "piece" },
-  { id: "p17", name: "Butter Naan", category: "Tandoor", price: 20, cost: 10, unit: "piece" },
-  { id: "p18", name: "Tandoori Paneer", category: "Tandoor", price: 350, cost: 220, unit: "kg" },
-  { id: "p19", name: "Tandoori Chicken", category: "Tandoor", price: 400, cost: 260, unit: "kg" },
-  { id: "p20", name: "Paratha", category: "Tandoor", price: 25, cost: 12, unit: "piece" },
-];
 
 const CATEGORIES = ["All", "Dairy", "Sweets", "Snacks", "Tandoor"];
 const CAT_ICONS = { Dairy: "🥛", Sweets: "🍬", Snacks: "🥨", Tandoor: "🔥", All: "🏪" };
@@ -204,10 +180,6 @@ export default function App() {
     if (qty <= 0) { setCart(prev => prev.filter(i => i.id !== id)); return; }
     setCart(prev => prev.map(i => i.id === id ? { ...i, qty, total: qty * i.price } : i));
   };
-  const setQtyPreset = (id, preset, unit) => {
-    const qty = unit === "kg" || unit === "litre" ? preset : Math.round(preset);
-    updateQty(id, qty);
-  };
 
   const cartSubtotal = cart.reduce((s, i) => s + i.total, 0);
   const cartCost     = cart.reduce((s, i) => s + i.qty * i.cost, 0);
@@ -275,11 +247,6 @@ export default function App() {
     }
   };
 
-  // Today's stats
-  const todayBills  = bills.filter(b => b.date?.slice(0, 10) === today());
-  const todaySales  = todayBills.reduce((s, b) => s + b.total, 0);
-  const todayProfit = todayBills.reduce((s, b) => s + b.profit, 0);
-
   // Loading screen
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#f8f5f0", flexDirection: "column", gap: 16 }}>
@@ -304,7 +271,7 @@ export default function App() {
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#f8f5f0", fontFamily: "'Segoe UI', sans-serif" }}>
       <Navbar view={view} setView={setView} />
       <div style={{ padding: "24px", maxWidth: 1400, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
-        {view === "billing"   && <BillingView products={products} filtered={filtered} category={category} setCategory={setCategory} search={search} setSearch={setSearch} cart={cart} setCart={setCart} addToCart={addToCart} updateQty={updateQty} setQtyPreset={setQtyPreset} cartTotal={cartTotal} cartSubtotal={cartSubtotal} discountAmt={discountAmt} discount={discount} setDiscount={setDiscount} customerForm={customerForm} setCustomerForm={setCustomerForm} checkoutBill={checkoutBill} />}
+        {view === "billing"   && <BillingView products={products} filtered={filtered} category={category} setCategory={setCategory} search={search} setSearch={setSearch} cart={cart} setCart={setCart} addToCart={addToCart} updateQty={updateQty} cartTotal={cartTotal} cartSubtotal={cartSubtotal} discountAmt={discountAmt} discount={discount} setDiscount={setDiscount} customerForm={customerForm} setCustomerForm={setCustomerForm} checkoutBill={checkoutBill} />}
         {view === "products"  && <ProductsView products={products} onSave={handleSaveProduct} onDelete={handleDeleteProduct} />}
         {view === "sales"     && <SalesView bills={bills} />}
         {view === "analytics" && <AnalyticsView bills={bills} />}
@@ -349,7 +316,7 @@ function Navbar({ view, setView }) {
 }
 
 // ─── BILLING VIEW ─────────────────────────────────────────────────────────────
-function BillingView({ products, filtered, category, setCategory, search, setSearch, cart, setCart, addToCart, updateQty, setQtyPreset, cartTotal, cartSubtotal, discountAmt, discount, setDiscount, customerForm, setCustomerForm, checkoutBill }) {
+function BillingView({ products, filtered, category, setCategory, search, setSearch, cart, setCart, addToCart, updateQty, cartTotal, cartSubtotal, discountAmt, discount, setDiscount, customerForm, setCustomerForm, checkoutBill }) {
   const [popup, setPopup] = useState(null);
 
   const openPopup = (product) => {

@@ -25,28 +25,9 @@ router.get("/", async (req, res) => {
       filter["customer.phone"] = req.query.phone;
     }
 
-    let bills = await Bill.find(filter).sort({ date: -1 }).limit(500);
-    const discount = Number(req.headers["x-discount"] || 0);
-    const discountTime = Number(req.headers["x-discount-time"] || 0);
+    const bills = await Bill.find(filter).sort({ date: -1 }).limit(500);
 
-    bills = bills.map(b => {
-      const d = discount / 100;
-
-      const billTime = new Date(b.date).getTime();
-
-      if (billTime <= discountTime) {
-        return {
-          ...b._doc,
-          total: b.total - (b.total * d),
-          profit: b.profit - (b.profit * d)
-        };
-      } else {
-        return b; // ✅ new bills untouched
-      }
-    });
-
-    res.json(bills);
-
+    res.json(bills); // ✅ BAS YEHI
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

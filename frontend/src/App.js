@@ -30,10 +30,6 @@ const CAT_COLORS = { Dairy: "#3b82f6", Sweets: "#ec4899", Snacks: "#f59e0b", Tan
 function formatINR(n) {
   return "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-function _applyGlobalDiscount(amount) {
-  let d = localStorage.getItem("globalDiscount") || 0;
-  return amount - (amount * d / 100);
-}
 function formatDate(d) {
   return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }

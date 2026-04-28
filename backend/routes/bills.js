@@ -78,8 +78,6 @@ router.post("/apply-discount", async (req, res) => {
 });
 
 // GET /api/bills/analytics — analytics data
-const discount = Number(req.headers["x-discount"] || 0);
-const d = discount / 100;
 router.get("/analytics", async (req, res) => {
   try {
     const thirtyDaysAgo = new Date();
@@ -91,8 +89,10 @@ router.get("/analytics", async (req, res) => {
     bills.forEach((b) => {
       const day = b.date.toISOString().slice(0, 10);
       if (!dailyMap[day]) dailyMap[day] = { date: day, revenue: 0, profit: 0, bills: 0 };
-      dailyMap[day].revenue += b.total - (b.total * d);
-      dailyMap[day].profit += b.profit - (b.profit * d);
+
+      // ✅ direct use karo (NO discount here)
+      dailyMap[day].revenue += b.total;
+      dailyMap[day].profit += b.profit;
       dailyMap[day].bills += 1;
     });
 
@@ -122,8 +122,8 @@ router.get("/analytics", async (req, res) => {
       topProducts,
       categories: catMap,
       totals: {
-        revenue: bills.reduce((s, b) => s + (b.total - b.total * d), 0),
-        profit: bills.reduce((s, b) => s + (b.profit - b.profit * d), 0),
+        revenue: bills.reduce((s, b) => s + b.total, 0),
+        profit: bills.reduce((s, b) => s + b.profit, 0),
         bills: bills.length,
       },
     });

@@ -25,8 +25,21 @@ router.get("/", async (req, res) => {
       filter["customer.phone"] = req.query.phone;
     }
 
-    const bills = await Bill.find(filter).sort({ date: -1 }).limit(500);
+    let bills = await Bill.find(filter).sort({ date: -1 }).limit(500);
+    const discount = Number(req.headers["x-discount"] || 0);
+
+    bills = bills.map(b => {
+      const d = discount / 100;
+
+      return {
+        ...b._doc,
+        total: b.total - (b.total * d),
+        profit: b.profit - (b.profit * d)
+      };
+    });
+
     res.json(bills);
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

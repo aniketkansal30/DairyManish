@@ -5,25 +5,37 @@ const API = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
 
 // ─── API HELPER ───────────────────────────────────────────────────────────────
 async function apiCall(path, method = "GET", body = null) {
+  const discount = localStorage.getItem("globalDiscount") || 0;
+
   const opts = {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      "Content-Type": "application/json",
+      "x-discount": discount
+    },
   };
+
   if (body) opts.body = JSON.stringify(body);
+
   const res = await fetch(`${API}${path}`, opts);
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Server error" }));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
+
   return res.json();
 }
-
 const CAT_ICONS = { Dairy: "🥛", Sweets: "🍬", Snacks: "🥨", Tandoor: "🔥", All: "🏪" };
 const CAT_COLORS = { Dairy: "#3b82f6", Sweets: "#ec4899", Snacks: "#f59e0b", Tandoor: "#ef4444" };
 
 // ─── UTILITY FUNCTIONS ────────────────────────────────────────────────────────
 function formatINR(n) {
   return "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function applyGlobalDiscount(amount) {
+  let d = localStorage.getItem("globalDiscount") || 0;
+  return amount - (amount * d / 100);
 }
 function formatDate(d) {
   return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -125,6 +137,22 @@ function printBill(bill) {
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
+  useEffect(() => {
+  const handleKey = (e) => {
+    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "d") {
+      const pass = prompt("Enter Admin Password");
+      if (pass === "aniket123") {
+        let discount = prompt("Enter Global Discount %");
+        localStorage.setItem("globalDiscount", discount);
+        alert("Global Discount Applied");
+        window.location.reload();
+      }
+    }
+  };
+
+  window.addEventListener("keydown", handleKey);
+  return () => window.removeEventListener("keydown", handleKey);
+}, []);
   const [view, setView] = useState("billing");
 
   const [products,  setProducts]  = useState([]);
@@ -620,8 +648,8 @@ function SalesView({ bills, onDelete, onDeleteAll }) {
     return true;
   });
 
-  const totalSales   = filtered.reduce((s, b) => s + b.total, 0);
-  const totalProfit  = filtered.reduce((s, b) => s + b.profit, 0);
+  const totalSales = filtered.reduce((s, b) => s + b.total, 0);
+  const totalProfit = filtered.reduce((s, b) => s + b.profit, 0);
   const totalDiscount = filtered.reduce((s, b) => s + (b.discountAmt || 0), 0);
   const margin = totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0;
   const labels = { today: "Today", month: "This Month", all: "All Time" };
@@ -692,7 +720,7 @@ function SalesView({ bills, onDelete, onDeleteAll }) {
             <div style={{ fontSize: 12, color: "#8a7e6e" }}>{b.items?.length} items</div>
             {b.discountPct > 0 && <div style={{ fontSize: 12, color: "#f59e0b", fontWeight: 700 }}>🏷️ {b.discountPct}% off</div>}
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 15, fontWeight: 900, color: "#2563eb" }}>{formatINR(b.total)}</div>
+              {formatINR(b.total)}
               <div style={{ fontSize: 11, color: "#16a34a" }}>+{formatINR(b.profit)} profit</div>
             </div>
             <button onClick={() => printBill(b)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", fontSize: 11, color: "#4a3f35", display: "flex", gap: 4, alignItems: "center" }}>

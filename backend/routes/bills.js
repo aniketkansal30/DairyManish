@@ -15,7 +15,6 @@ router.get("/", async (req, res) => {
     }
 
     if (req.query.month) {
-      // ?month=2025-03
       const [year, month] = req.query.month.split("-").map(Number);
       const start = new Date(year, month - 1, 1);
       const end   = new Date(year, month, 1);
@@ -45,7 +44,6 @@ router.post("/", async (req, res) => {
     const bill = new Bill(billData);
     await bill.save();
 
-    // Customer record update karo (agar phone diya hai)
     if (billData.customer?.phone) {
       await Customer.findOneAndUpdate(
         { phone: billData.customer.phone },
@@ -66,13 +64,11 @@ router.post("/", async (req, res) => {
 // GET /api/bills/analytics — analytics data
 router.get("/analytics", async (req, res) => {
   try {
-    // Last 30 days ka data
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const bills = await Bill.find({ date: { $gte: thirtyDaysAgo } }).sort({ date: 1 });
 
-    // Daily sales group karo
     const dailyMap = {};
     bills.forEach((b) => {
       const day = b.date.toISOString().slice(0, 10);
@@ -82,7 +78,6 @@ router.get("/analytics", async (req, res) => {
       dailyMap[day].bills   += 1;
     });
 
-    // Top products
     const productMap = {};
     bills.forEach((b) => {
       b.items.forEach((item) => {
@@ -96,7 +91,6 @@ router.get("/analytics", async (req, res) => {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
 
-    // Category breakdown
     const catMap = {};
     bills.forEach((b) => {
       b.items.forEach((item) => {
@@ -115,6 +109,26 @@ router.get("/analytics", async (req, res) => {
         bills:   bills.length,
       },
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/bills/all — saari bills delete karo
+router.delete("/all", async (req, res) => {
+  try {
+    await Bill.deleteMany({});
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/bills/:id — single bill delete karo
+router.delete("/:id", async (req, res) => {
+  try {
+    await Bill.findOneAndDelete({ id: req.params.id });
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

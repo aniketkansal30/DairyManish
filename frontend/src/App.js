@@ -5,7 +5,8 @@ const API = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
 
 // ─── API HELPER ───────────────────────────────────────────────────────────────
 async function apiCall(path, method = "GET", body = null) {
-  const discount = localStorage.getItem("globalDiscount") || 0;
+  const isActive = localStorage.getItem("discountActive") === "true";
+  const discount = isActive ? (localStorage.getItem("globalDiscount") || 0) : 0;
 
   const opts = {
     method,
@@ -144,7 +145,11 @@ export default function App() {
       if (pass === "aniket123") {
         let discount = prompt("Enter Global Discount %");
         localStorage.setItem("globalDiscount", discount);
+        localStorage.setItem("discountActive", "true");
         alert("Global Discount Applied");
+        setTimeout(() => {
+        localStorage.removeItem("discountActive");
+        }, 2000);
         window.location.reload();
       }
     }

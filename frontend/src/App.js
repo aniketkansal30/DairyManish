@@ -18,31 +18,6 @@ async function apiCall(path, method = "GET", body = null) {
   return res.json();
 }
 
-// ─── INITIAL DATA ─────────────────────────────────────────────────────────────
-// const INITIAL_PRODUCTS = [
-//   { id: "p1", name: "Paneer", category: "Dairy", price: 400, cost: 280, unit: "kg" },
-//   { id: "p2", name: "Doodh (Full Cream)", category: "Dairy", price: 60, cost: 42, unit: "litre" },
-//   { id: "p3", name: "Dahi", category: "Dairy", price: 80, cost: 55, unit: "kg" },
-//   { id: "p4", name: "Makhan", category: "Dairy", price: 500, cost: 360, unit: "kg" },
-//   { id: "p5", name: "Ghee", category: "Dairy", price: 600, cost: 440, unit: "kg" },
-//   { id: "p6", name: "Lassi", category: "Dairy", price: 30, cost: 18, unit: "piece" },
-//   { id: "p7", name: "Gulab Jamun", category: "Sweets", price: 320, cost: 200, unit: "kg" },
-//   { id: "p8", name: "Barfi", category: "Sweets", price: 400, cost: 260, unit: "kg" },
-//   { id: "p9", name: "Halwa", category: "Sweets", price: 250, cost: 160, unit: "kg" },
-//   { id: "p10", name: "Rasgulla", category: "Sweets", price: 280, cost: 180, unit: "kg" },
-//   { id: "p11", name: "Jalebi", category: "Sweets", price: 200, cost: 120, unit: "kg" },
-//   { id: "p12", name: "Samosa", category: "Snacks", price: 15, cost: 8, unit: "piece" },
-//   { id: "p13", name: "Kachori", category: "Snacks", price: 12, cost: 6, unit: "piece" },
-//   { id: "p14", name: "Pakora", category: "Snacks", price: 200, cost: 100, unit: "kg" },
-//   { id: "p15", name: "Bread Pakora", category: "Snacks", price: 25, cost: 14, unit: "piece" },
-//   { id: "p16", name: "Tandoori Roti", category: "Tandoor", price: 10, cost: 5, unit: "piece" },
-//   { id: "p17", name: "Butter Naan", category: "Tandoor", price: 20, cost: 10, unit: "piece" },
-//   { id: "p18", name: "Tandoori Paneer", category: "Tandoor", price: 350, cost: 220, unit: "kg" },
-//   { id: "p19", name: "Tandoori Chicken", category: "Tandoor", price: 400, cost: 260, unit: "kg" },
-//   { id: "p20", name: "Paratha", category: "Tandoor", price: 25, cost: 12, unit: "piece" },
-// ];
-
-// const CATEGORIES = ["All", "Dairy", "Sweets", "Snacks", "Tandoor"];
 const CAT_ICONS = { Dairy: "🥛", Sweets: "🍬", Snacks: "🥨", Tandoor: "🔥", All: "🏪" };
 const CAT_COLORS = { Dairy: "#3b82f6", Sweets: "#ec4899", Snacks: "#f59e0b", Tandoor: "#ef4444" };
 
@@ -164,7 +139,6 @@ export default function App() {
   const [customerForm, setCustomerForm] = useState({ name: "", phone: "" });
   const [discount,     setDiscount]     = useState(0);
 
-  // Load data from MongoDB on mount
   useEffect(() => {
     async function loadAll() {
       try {
@@ -186,13 +160,11 @@ export default function App() {
     loadAll();
   }, []);
 
-  // Filtered products
   const filtered = useMemo(() => products.filter(p =>
     (category === "All" || p.category === category) &&
     p.name.toLowerCase().includes(search.toLowerCase())
   ), [products, category, search]);
 
-  // Cart ops
   const addToCart = (product) => {
     setCart(prev => {
       const ex = prev.find(i => i.id === product.id);
@@ -214,13 +186,12 @@ export default function App() {
   const discountAmt  = cartSubtotal * (discount / 100);
   const cartTotal    = cartSubtotal - discountAmt;
 
-  // Checkout — save to MongoDB
   const checkoutBill = async () => {
     if (!cart.length) return;
     const bill = {
       id:          "MD" + Date.now(),
       date:        new Date().toISOString(),
-      items:       cart,  
+      items:       cart,
       subtotal:    cartSubtotal,
       discountPct: discount,
       discountAmt,
@@ -245,7 +216,6 @@ export default function App() {
     }
   };
 
-  // Product CRUD — save to MongoDB
   const handleSaveProduct = async (formData, editingId) => {
     try {
       if (editingId) {
@@ -275,12 +245,25 @@ export default function App() {
     }
   };
 
-  // Today's stats
-  // const todayBills  = bills.filter(b => b.date?.slice(0, 10) === today());
-  // const todaySales  = todayBills.reduce((s, b) => s + b.total, 0);
-  // const todayProfit = todayBills.reduce((s, b) => s + b.profit, 0);
+  // ─── BILL DELETE FUNCTIONS ───────────────────────────────────────────────────
+  const handleDeleteBill = async (id) => {
+    try {
+      await apiCall(`/bills/${id}`, "DELETE");
+      setBills(prev => prev.filter(b => b.id !== id));
+    } catch (e) {
+      alert("Bill delete karne mein error: " + e.message);
+    }
+  };
 
-  // Loading screen
+  const handleDeleteAllBills = async () => {
+    try {
+      await apiCall("/bills/all", "DELETE");
+      setBills([]);
+    } catch (e) {
+      alert("Saari bills delete karne mein error: " + e.message);
+    }
+  };
+
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#f8f5f0", flexDirection: "column", gap: 16 }}>
       <div style={{ fontSize: 48 }}>🥛</div>
@@ -289,7 +272,6 @@ export default function App() {
     </div>
   );
 
-  // Error screen
   if (error) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#f8f5f0", flexDirection: "column", gap: 16, padding: 24, textAlign: "center" }}>
       <div style={{ fontSize: 48 }}>❌</div>
@@ -306,7 +288,7 @@ export default function App() {
       <div style={{ padding: "24px", maxWidth: 1400, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
         {view === "billing"   && <BillingView products={products} filtered={filtered} category={category} setCategory={setCategory} search={search} setSearch={setSearch} cart={cart} setCart={setCart} addToCart={addToCart} updateQty={updateQty} setQtyPreset={setQtyPreset} cartTotal={cartTotal} cartSubtotal={cartSubtotal} discountAmt={discountAmt} discount={discount} setDiscount={setDiscount} customerForm={customerForm} setCustomerForm={setCustomerForm} checkoutBill={checkoutBill} />}
         {view === "products"  && <ProductsView products={products} onSave={handleSaveProduct} onDelete={handleDeleteProduct} />}
-        {view === "sales"     && <SalesView bills={bills} />}
+        {view === "sales"     && <SalesView bills={bills} onDelete={handleDeleteBill} onDeleteAll={handleDeleteAllBills} />}
         {view === "analytics" && <AnalyticsView bills={bills} />}
         {view === "customers" && <CustomersView customers={customers} bills={bills} setCart={setCart} setView={setView} />}
       </div>
@@ -370,7 +352,6 @@ function BillingView({ products, filtered, category, setCategory, search, setSea
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20, alignItems: "start" }}>
       <div style={{ display: "flex", gap: 16 }}>
-        {/* Category sidebar */}
         <div style={{ display: "flex", flexDirection: "column", gap: 4, width: 100, flexShrink: 0 }}>
           {["All", "Dairy", "Sweets", "Snacks", "Tandoor"].map(c => (
             <button key={c} onClick={() => setCategory(c)} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, padding: "12px 8px", borderRadius: 14, border: "2px solid", borderColor: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#e5e0d8", background: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#fff", color: category === c ? "#fff" : "#4a3f35", fontSize: 12, fontWeight: category === c ? 800 : 500, cursor: "pointer", transition: "all 0.15s", boxShadow: category === c ? `0 4px 12px ${(CAT_COLORS[c] || "#f59e0b")}44` : "none" }}>
@@ -380,7 +361,6 @@ function BillingView({ products, filtered, category, setCategory, search, setSea
           ))}
         </div>
 
-        {/* Product grid */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ position: "relative", marginBottom: 14 }}>
             <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#8a7e6e" }}><Icon name="search" size={16} /></span>
@@ -406,7 +386,6 @@ function BillingView({ products, filtered, category, setCategory, search, setSea
         </div>
       </div>
 
-      {/* Right panel */}
       <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", overflow: "hidden", position: "sticky", top: 80 }}>
         <div style={{ padding: "14px 16px", background: "#1a1310", display: "flex", alignItems: "center", gap: 8 }}>
           <Icon name="cart" size={15} />
@@ -474,7 +453,6 @@ function BillingView({ products, filtered, category, setCategory, search, setSea
         )}
       </div>
 
-      {/* Popup */}
       {popup && (
         <>
           <div onClick={() => setPopup(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200 }} />
@@ -630,8 +608,9 @@ function ProductsView({ products, onSave, onDelete }) {
 }
 
 // ─── SALES VIEW ───────────────────────────────────────────────────────────────
-function SalesView({ bills }) {
+function SalesView({ bills, onDelete, onDeleteAll }) {
   const [filter, setFilter] = useState("today");
+  const [selected, setSelected] = useState([]);
   const todayStr = today();
   const monthStr = thisMonth();
 
@@ -647,14 +626,41 @@ function SalesView({ bills }) {
   const margin = totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0;
   const labels = { today: "Today", month: "This Month", all: "All Time" };
 
+  const toggleSelect = (id) => {
+    setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const deleteSelected = async () => {
+    if (!selected.length) return;
+    if (!window.confirm(`${selected.length} bills delete karne hain?`)) return;
+    for (const id of selected) {
+      await onDelete(id);
+    }
+    setSelected([]);
+  };
+
+  const deleteAll = () => {
+    if (!window.confirm("Saari history delete karna chahte ho? Yeh action undo nahi hoga!")) return;
+    onDeleteAll();
+    setSelected([]);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div style={{ fontSize: 20, fontWeight: 900, color: "#1a1310" }}>💰 Sales Overview</div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {["today", "month", "all"].map(f => (
             <button key={f} onClick={() => setFilter(f)} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid", borderColor: filter === f ? "#f59e0b" : "#e5e0d8", background: filter === f ? "#f59e0b" : "#fff", color: filter === f ? "#1a1310" : "#8a7e6e" }}>{labels[f]}</button>
           ))}
+          {selected.length > 0 && (
+            <button onClick={deleteSelected} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid #ef4444", background: "#ef4444", color: "#fff" }}>
+              🗑️ Delete Selected ({selected.length})
+            </button>
+          )}
+          <button onClick={deleteAll} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid #ef4444", background: "#fff", color: "#ef4444" }}>
+            🗑️ Delete All
+          </button>
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
@@ -676,7 +682,8 @@ function SalesView({ bills }) {
         <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e0d8", fontSize: 14, fontWeight: 800, color: "#1a1310" }}>🧾 Bills — {labels[filter]}</div>
         {filtered.length === 0 && <div style={{ textAlign: "center", color: "#c9b9a8", padding: "40px 0", fontSize: 14 }}>Koi bill nahi {labels[filter].toLowerCase()} mein</div>}
         {filtered.map((b, i) => (
-          <div key={b.id} style={{ display: "flex", alignItems: "center", padding: "13px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: 16, flexWrap: "wrap" }}>
+          <div key={b.id} style={{ display: "flex", alignItems: "center", padding: "13px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: 16, flexWrap: "wrap", background: selected.includes(b.id) ? "#fff8ee" : "transparent" }}>
+            <input type="checkbox" checked={selected.includes(b.id)} onChange={() => toggleSelect(b.id)} style={{ width: 16, height: 16, cursor: "pointer", flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 140 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>{b.id}</div>
               <div style={{ fontSize: 11, color: "#8a7e6e" }}>{formatDate(b.date)} · {formatTime(b.date)}</div>
@@ -690,6 +697,9 @@ function SalesView({ bills }) {
             </div>
             <button onClick={() => printBill(b)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", fontSize: 11, color: "#4a3f35", display: "flex", gap: 4, alignItems: "center" }}>
               <Icon name="print" size={12} /> Print
+            </button>
+            <button onClick={() => { if(window.confirm("Yeh bill delete karein?")) onDelete(b.id); }} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fff", cursor: "pointer", fontSize: 11, color: "#ef4444", display: "flex", gap: 4, alignItems: "center" }}>
+              <Icon name="trash" size={12} /> Delete
             </button>
           </div>
         ))}

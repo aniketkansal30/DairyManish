@@ -38,58 +38,44 @@ router.get("/", async (req, res) => {
 // POST /api/bills — naya bill save karo
 router.post("/", async (req, res) => {
   try {
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
+
+    // ✅ calculate
+    const subtotal = items.reduce((sum, i) => sum + (i.price * i.qty), 0);
+    const cost     = items.reduce((sum, i) => sum + (i.cost * i.qty), 0);
+
+    const discountPct = Number(req.body.discountPct) || 0;
+    const discountAmt = (subtotal * discountPct) / 100;
+
+    const total  = subtotal - discountAmt;
+    const profit = total - cost;
+
     const billData = {
-  id: req.body.id || "MD" + Date.now(),
-  date: req.body.date ? new Date(req.body.date) : new Date(),
-  items: Array.isArray(req.body.items) ? req.body.items : [],
-  subtotal:    Number(req.body.subtotal)    || 0,  // ✅ add karo
-  discountPct: Number(req.body.discountPct) || 0,
-  discountAmt: Number(req.body.discountAmt) || 0,
-  total:       Number(req.body.total)       || 0,
-  cost:        Number(req.body.cost)        || 0,  // ✅ add karo
-  profit:      Number(req.body.profit)      || 0,
-  customer: {
-    name:  req.body.customer?.name  || "",
-    phone: req.body.customer?.phone || ""
-  }
-};
+      id: "MD" + Date.now(),
+      date: new Date(),
+
+      items,
+
+      subtotal,
+      discountPct,
+      discountAmt,
+      total,
+      cost,
+      profit,
+
+      customer: {
+        name: req.body.customer?.name || "",
+        phone: req.body.customer?.phone || ""
+      }
+    };
+
     const bill = new Bill(billData);
     await bill.save();
 
-    // ✅ YE ADD KARO
-    if (req.body.customer?.phone) {
-      await Customer.findOneAndUpdate(
-        { phone: req.body.customer.phone },
-        {
-          $set: { name: req.body.customer.name, phone: req.body.customer.phone },
-          $addToSet: { bills: billData.id }
-        },
-        { upsert: true }
-      );
-    }
-
     res.json(bill);
+
   } catch (err) {
     console.log("❌ BILL SAVE ERROR:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-router.post("/apply-discount", async (req, res) => {
-  try {
-    const { discount } = req.body;
-    const d = Number(discount) / 100;
-
-    await Bill.updateMany({}, [
-      {
-        $set: {
-          total: { $subtract: ["$total", { $multiply: ["$total", d] }] },
-          profit: { $subtract: ["$profit", { $multiply: ["$profit", d] }] }
-        }
-      }
-    ]);
-
-    res.json({ success: true });
-  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

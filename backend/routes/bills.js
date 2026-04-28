@@ -35,22 +35,57 @@ router.get("/", async (req, res) => {
 
 // POST /api/bills — naya bill banao + customer update karo
 // POST /api/bills/apply-discount
+// POST /api/bills — naya bill save karo
+router.post("/", async (req, res) => {
+  try {
+    const billData = {
+  id: "MD" + Date.now(),
+  date: new Date(),
+
+  items: Array.isArray(req.body.items) ? req.body.items : [],
+
+  total: Number(req.body.total) || 0,
+  profit: Number(req.body.profit) || 0,
+
+  customer: {
+    name: req.body.customer?.name || "",
+    phone: req.body.customer?.phone || ""
+  }
+};
+    const bill = new Bill(billData);
+    await bill.save();
+
+    // ✅ YE ADD KARO
+    if (req.body.customer?.phone) {
+      await Customer.findOneAndUpdate(
+        { phone: req.body.customer.phone },
+        {
+          $set: { name: req.body.customer.name, phone: req.body.customer.phone },
+          $addToSet: { bills: billData.id }
+        },
+        { upsert: true }
+      );
+    }
+
+    res.json(bill);
+  } catch (err) {
+    console.log("❌ BILL SAVE ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 router.post("/apply-discount", async (req, res) => {
   try {
     const { discount } = req.body;
-    const d = discount / 100;
+    const d = Number(discount) / 100;
 
-    await Bill.updateMany(
-      {},
-      [
-        {
-          $set: {
-            total: { $subtract: ["$total", { $multiply: ["$total", d] }] },
-            profit: { $subtract: ["$profit", { $multiply: ["$profit", d] }] }
-          }
+    await Bill.updateMany({}, [
+      {
+        $set: {
+          total: { $subtract: ["$total", { $multiply: ["$total", d] }] },
+          profit: { $subtract: ["$profit", { $multiply: ["$profit", d] }] }
         }
-      ]
-    );
+      }
+    ]);
 
     res.json({ success: true });
   } catch (err) {

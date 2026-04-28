@@ -138,7 +138,7 @@ export default function App() {
         if (pass === "aniket123") {
           let discount = prompt("Enter Global Discount %");
 
-          c
+          
           const confirmApply = window.confirm("Are you sure? This will apply discount permanently.");
 
           if (confirmApply) {

@@ -1,4 +1,4 @@
-import { useState, useEffect,useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 // ─── API BASE URL ─────────────────────────────────────────────────────────────
 const API = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
@@ -10,9 +10,10 @@ async function apiCall(path, method = "GET", body = null) {
 
   const opts = {
     method,
-    headers: { 
+    headers: {
       "Content-Type": "application/json",
-      "x-discount": discount
+      "x-discount": discount,
+      "x-discount-time": discountTime // ✅ yeh add
     },
   };
 
@@ -139,38 +140,39 @@ function printBill(bill) {
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   useEffect(() => {
-  const handleKey = (e) => {
-    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "d") {
-      const pass = prompt("Enter Admin Password");
-      if (pass === "aniket123") {
-        let discount = prompt("Enter Global Discount %");
-        localStorage.setItem("globalDiscount", discount);
-        localStorage.setItem("discountActive", "true");
-        alert("Global Discount Applied");
-        setTimeout(() => {
-        localStorage.removeItem("discountActive");
-        }, 2000);
-        window.location.reload();
+    const handleKey = (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "d") {
+        const pass = prompt("Enter Admin Password");
+        if (pass === "aniket123") {
+          let discount = prompt("Enter Global Discount %");
+          localStorage.setItem("globalDiscount", discount);
+          localStorage.setItem("discountTime", Date.now()); // 🔥 IMPORTANT
+          localStorage.setItem("discountActive", "true");
+          alert("Global Discount Applied");
+          setTimeout(() => {
+            localStorage.removeItem("discountActive");
+          }, 2000);
+          window.location.reload();
+        }
       }
-    }
-  };
+    };
 
-  window.addEventListener("keydown", handleKey);
-  return () => window.removeEventListener("keydown", handleKey);
-}, []);
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
   const [view, setView] = useState("billing");
 
-  const [products,  setProducts]  = useState([]);
-  const [bills,     setBills]     = useState([]);
+  const [products, setProducts] = useState([]);
+  const [bills, setBills] = useState([]);
   const [customers, setCustomers] = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const [cart,         setCart]         = useState([]);
-  const [category,     setCategory]     = useState("All");
-  const [search,       setSearch]       = useState("");
+  const [cart, setCart] = useState([]);
+  const [category, setCategory] = useState("All");
+  const [search, setSearch] = useState("");
   const [customerForm, setCustomerForm] = useState({ name: "", phone: "" });
-  const [discount,     setDiscount]     = useState(0);
+  const [discount, setDiscount] = useState(0);
 
   useEffect(() => {
     async function loadAll() {
@@ -215,23 +217,23 @@ export default function App() {
   };
 
   const cartSubtotal = cart.reduce((s, i) => s + i.total, 0);
-  const cartCost     = cart.reduce((s, i) => s + i.qty * i.cost, 0);
-  const discountAmt  = cartSubtotal * (discount / 100);
-  const cartTotal    = cartSubtotal - discountAmt;
+  const cartCost = cart.reduce((s, i) => s + i.qty * i.cost, 0);
+  const discountAmt = cartSubtotal * (discount / 100);
+  const cartTotal = cartSubtotal - discountAmt;
 
   const checkoutBill = async () => {
     if (!cart.length) return;
     const bill = {
-      id:          "MD" + Date.now(),
-      date:        new Date().toISOString(),
-      items:       cart,
-      subtotal:    cartSubtotal,
+      id: "MD" + Date.now(),
+      date: new Date().toISOString(),
+      items: cart,
+      subtotal: cartSubtotal,
       discountPct: discount,
       discountAmt,
-      total:       cartTotal,
-      cost:        cartCost,
-      profit:      cartTotal - cartCost,
-      customer:    customerForm.name || customerForm.phone ? { ...customerForm } : null,
+      total: cartTotal,
+      cost: cartCost,
+      profit: cartTotal - cartCost,
+      customer: customerForm.name || customerForm.phone ? { ...customerForm } : null,
     };
     try {
       const saved = await apiCall("/bills", "POST", bill);
@@ -319,9 +321,9 @@ export default function App() {
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#f8f5f0", fontFamily: "'Segoe UI', sans-serif" }}>
       <Navbar view={view} setView={setView} />
       <div style={{ padding: "24px", maxWidth: 1400, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
-        {view === "billing"   && <BillingView products={products} filtered={filtered} category={category} setCategory={setCategory} search={search} setSearch={setSearch} cart={cart} setCart={setCart} addToCart={addToCart} updateQty={updateQty} setQtyPreset={setQtyPreset} cartTotal={cartTotal} cartSubtotal={cartSubtotal} discountAmt={discountAmt} discount={discount} setDiscount={setDiscount} customerForm={customerForm} setCustomerForm={setCustomerForm} checkoutBill={checkoutBill} />}
-        {view === "products"  && <ProductsView products={products} onSave={handleSaveProduct} onDelete={handleDeleteProduct} />}
-        {view === "sales"     && <SalesView bills={bills} onDelete={handleDeleteBill} onDeleteAll={handleDeleteAllBills} />}
+        {view === "billing" && <BillingView products={products} filtered={filtered} category={category} setCategory={setCategory} search={search} setSearch={setSearch} cart={cart} setCart={setCart} addToCart={addToCart} updateQty={updateQty} setQtyPreset={setQtyPreset} cartTotal={cartTotal} cartSubtotal={cartSubtotal} discountAmt={discountAmt} discount={discount} setDiscount={setDiscount} customerForm={customerForm} setCustomerForm={setCustomerForm} checkoutBill={checkoutBill} />}
+        {view === "products" && <ProductsView products={products} onSave={handleSaveProduct} onDelete={handleDeleteProduct} />}
+        {view === "sales" && <SalesView bills={bills} onDelete={handleDeleteBill} onDeleteAll={handleDeleteAllBills} />}
         {view === "analytics" && <AnalyticsView bills={bills} />}
         {view === "customers" && <CustomersView customers={customers} bills={bills} setCart={setCart} setView={setView} />}
       </div>
@@ -332,9 +334,9 @@ export default function App() {
 // ─── NAVBAR ───────────────────────────────────────────────────────────────────
 function Navbar({ view, setView }) {
   const nav = [
-    { id: "billing",   label: "Billing",   icon: "cart"      },
-    { id: "products",  label: "Products",  icon: "products"  },
-    { id: "sales",     label: "Sales",     icon: "profit"    },
+    { id: "billing", label: "Billing", icon: "cart" },
+    { id: "products", label: "Products", icon: "products" },
+    { id: "sales", label: "Sales", icon: "profit" },
     { id: "analytics", label: "Analytics", icon: "analytics" },
     { id: "customers", label: "Customers", icon: "customers" },
   ];
@@ -542,10 +544,10 @@ const popBtn = { width: 44, height: 44, borderRadius: 10, border: "1.5px solid #
 
 // ─── PRODUCTS VIEW ────────────────────────────────────────────────────────────
 function ProductsView({ products, onSave, onDelete }) {
-  const [form,    setForm]    = useState({ name: "", category: "Dairy", price: "", cost: "", unit: "kg" });
+  const [form, setForm] = useState({ name: "", category: "Dairy", price: "", cost: "", unit: "kg" });
   const [editing, setEditing] = useState(null);
-  const [search,  setSearch]  = useState("");
-  const [saving,  setSaving]  = useState(false);
+  const [search, setSearch] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const save = async () => {
     if (!form.name || !form.price || !form.cost) return;
@@ -607,7 +609,7 @@ function ProductsView({ products, onSave, onDelete }) {
             <Icon name="save" size={16} /> {saving ? "Saving..." : editing ? "Update" : "Add Product"}
           </button>
         </div>
-      
+
       </div>
 
       <div>
@@ -699,8 +701,8 @@ function SalesView({ bills, onDelete, onDeleteAll }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
         {[
-          { label: "Total Sales",    value: formatINR(totalSales),   color: "#2563eb", icon: "💳", sub: `${filtered.length} bills` },
-          { label: "Total Profit",   value: formatINR(totalProfit),  color: "#16a34a", icon: "📈", sub: `${margin}% margin` },
+          { label: "Total Sales", value: formatINR(totalSales), color: "#2563eb", icon: "💳", sub: `${filtered.length} bills` },
+          { label: "Total Profit", value: formatINR(totalProfit), color: "#16a34a", icon: "📈", sub: `${margin}% margin` },
           { label: "Discount Given", value: formatINR(totalDiscount), color: "#f59e0b", icon: "🏷️", sub: `${filtered.filter(b => b.discountPct > 0).length} discounted bills` },
           { label: "Avg Bill Value", value: filtered.length ? formatINR(totalSales / filtered.length) : "₹0.00", color: "#7c3aed", icon: "🧾", sub: "per bill" },
         ].map(k => (
@@ -732,7 +734,7 @@ function SalesView({ bills, onDelete, onDeleteAll }) {
             <button onClick={() => printBill(b)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", fontSize: 11, color: "#4a3f35", display: "flex", gap: 4, alignItems: "center" }}>
               <Icon name="print" size={12} /> Print
             </button>
-            <button onClick={() => { if(window.confirm("Yeh bill delete karein?")) onDelete(b.id); }} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fff", cursor: "pointer", fontSize: 11, color: "#ef4444", display: "flex", gap: 4, alignItems: "center" }}>
+            <button onClick={() => { if (window.confirm("Yeh bill delete karein?")) onDelete(b.id); }} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fff", cursor: "pointer", fontSize: 11, color: "#ef4444", display: "flex", gap: 4, alignItems: "center" }}>
               <Icon name="trash" size={12} /> Delete
             </button>
           </div>
@@ -747,9 +749,9 @@ function AnalyticsView({ bills }) {
   const todayBills = bills.filter(b => b.date?.slice(0, 10) === today());
   const monthBills = bills.filter(b => b.date?.slice(0, 7) === thisMonth());
 
-  const totalSales  = bills.reduce((s, b) => s + b.total, 0);
+  const totalSales = bills.reduce((s, b) => s + b.total, 0);
   const totalProfit = bills.reduce((s, b) => s + b.profit, 0);
-  const todaySales  = todayBills.reduce((s, b) => s + b.total, 0);
+  const todaySales = todayBills.reduce((s, b) => s + b.total, 0);
   const todayProfit = todayBills.reduce((s, b) => s + b.profit, 0);
 
   const dailyMap = {};
@@ -777,9 +779,9 @@ function AnalyticsView({ bills }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
         {[
-          { label: "Today Sales",  value: formatINR(todaySales),  color: "#2563eb", sub: `${todayBills.length} bills` },
+          { label: "Today Sales", value: formatINR(todaySales), color: "#2563eb", sub: `${todayBills.length} bills` },
           { label: "Today Profit", value: formatINR(todayProfit), color: "#16a34a", sub: `${todaySales > 0 ? Math.round((todayProfit / todaySales) * 100) : 0}% margin` },
-          { label: "Total Sales",  value: formatINR(totalSales),  color: "#7c3aed", sub: `${bills.length} bills ever` },
+          { label: "Total Sales", value: formatINR(totalSales), color: "#7c3aed", sub: `${bills.length} bills ever` },
           { label: "Total Profit", value: formatINR(totalProfit), color: "#ea580c", sub: `${totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0}% margin` },
         ].map(k => (
           <div key={k.label} style={{ background: "#fff", borderRadius: 16, padding: "20px", border: "1px solid #e5e0d8" }}>
@@ -855,7 +857,7 @@ function AnalyticsView({ bills }) {
 
 // ─── CUSTOMERS VIEW ───────────────────────────────────────────────────────────
 function CustomersView({ customers, bills, setCart, setView }) {
-  const [search,   setSearch]   = useState("");
+  const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(null);
 
   const filtered = customers.filter(c =>

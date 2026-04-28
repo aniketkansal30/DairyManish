@@ -122,7 +122,7 @@ function printBill(bill) {
   ${bill.customer?.name ? `<div class="row"><span>Customer:</span><span>${bill.customer.name}</span></div>` : ""}
   ${bill.customer?.phone ? `<div class="row"><span>Phone:</span><span>${bill.customer.phone}</span></div>` : ""}
   <div class="divider"></div>
-  <div class="row bold"><span>Item</span><span>Qty</span><span>Amt</span></div>
+  <div class="row bold"><span style="flex:2">Item</span><span style="flex:1;text-align:right;padding-right:8px">Qty</span><span style="flex:1;text-align:right">Amt</span></div>
   <div class="divider"></div>
   ${bill.items.map(i => `
     <div class="row">

@@ -5,15 +5,10 @@ const API = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
 
 // ─── API HELPER ───────────────────────────────────────────────────────────────
 async function apiCall(path, method = "GET", body = null) {
-  const isActive = localStorage.getItem("discountActive") === "true";
-  const discount = isActive ? (localStorage.getItem("globalDiscount") || 0) : 0;
-
   const opts = {
     method,
     headers: {
-      "Content-Type": "application/json",
-      "x-discount": discount,
-      "x-discount-time": discountTime // ✅ yeh add
+      "Content-Type": "application/json"
     },
   };
 
@@ -140,19 +135,20 @@ function printBill(bill) {
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   useEffect(() => {
-    const handleKey = (e) => {
+    const handleKey = async (e) => {
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "d") {
         const pass = prompt("Enter Admin Password");
+
         if (pass === "aniket123") {
           let discount = prompt("Enter Global Discount %");
-          localStorage.setItem("globalDiscount", discount);
-          localStorage.setItem("discountTime", Date.now()); // 🔥 IMPORTANT
-          localStorage.setItem("discountActive", "true");
-          alert("Global Discount Applied");
-          setTimeout(() => {
-            localStorage.removeItem("discountActive");
-          }, 2000);
-          window.location.reload();
+
+          const confirmApply = confirm("Are you sure? This will apply discount permanently.");
+
+          if (confirmApply) {
+            await apiCall("/bills/apply-discount", "POST", { discount });
+            alert("Discount applied to existing data");
+            window.location.reload();
+          }
         }
       }
     };

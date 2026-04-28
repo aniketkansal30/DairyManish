@@ -53,31 +53,27 @@ router.get("/", async (req, res) => {
 });
 
 // POST /api/bills — naya bill banao + customer update karo
-router.post("/", async (req, res) => {
+// POST /api/bills/apply-discount
+router.post("/apply-discount", async (req, res) => {
   try {
-    const billData = {
-      ...req.body,
-      id: req.body.id || "MD" + Date.now(),
-      date: req.body.date ? new Date(req.body.date) : new Date(),
-    };
+    const { discount } = req.body;
+    const d = discount / 100;
 
-    const bill = new Bill(billData);
-    await bill.save();
-
-    if (billData.customer?.phone) {
-      await Customer.findOneAndUpdate(
-        { phone: billData.customer.phone },
+    await Bill.updateMany(
+      {},
+      [
         {
-          $set: { name: billData.customer.name || "" },
-          $push: { bills: { $each: [bill.id], $position: 0 } },
-        },
-        { upsert: true, new: true }
-      );
-    }
+          $set: {
+            total: { $subtract: ["$total", { $multiply: ["$total", d] }] },
+            profit: { $subtract: ["$profit", { $multiply: ["$profit", d] }] }
+          }
+        }
+      ]
+    );
 
-    res.status(201).json(bill);
+    res.json({ success: true });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 

@@ -220,7 +220,7 @@ export default function App() {
     const bill = {
       id:          "MD" + Date.now(),
       date:        new Date().toISOString(),
-      items:       cart,
+      items:       cart,  
       subtotal:    cartSubtotal,
       discountPct: discount,
       discountAmt,

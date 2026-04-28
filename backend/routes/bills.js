@@ -79,7 +79,28 @@ router.post("/", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+router.post("/apply-discount", async (req, res) => {
+  try {
+    const { discount } = req.body;
+    const d = discount / 100;
 
+    await Bill.updateMany(
+      {},
+      [
+        {
+          $set: {
+            total: { $subtract: ["$total", { $multiply: ["$total", d] }] },
+            profit: { $subtract: ["$profit", { $multiply: ["$profit", d] }] }
+          }
+        }
+      ]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // GET /api/bills/analytics — analytics data
 router.get("/analytics", async (req, res) => {
   try {

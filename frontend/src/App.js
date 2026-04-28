@@ -127,7 +127,7 @@ function printBill(bill) {
   ${bill.items.map(i => `
     <div class="row">
       <span style="flex:2">${i.name}</span>
-      <span style="flex:1;text-align:center">${formatQty(i.qty, i.unit)}</span>
+      <span style="flex:1;text-align:right;padding-right:8px">${formatQty(i.qty, i.unit)}</span>
       <span style="flex:1;text-align:right">${formatINR(i.total)}</span>
     </div>
   `).join("")}

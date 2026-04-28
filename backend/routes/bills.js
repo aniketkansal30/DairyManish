@@ -39,16 +39,17 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const billData = {
-  id: "MD" + Date.now(),
-  date: new Date(),
-
+  id: req.body.id || "MD" + Date.now(),
+  date: req.body.date ? new Date(req.body.date) : new Date(),
   items: Array.isArray(req.body.items) ? req.body.items : [],
-
-  total: Number(req.body.total) || 0,
-  profit: Number(req.body.profit) || 0,
-
+  subtotal:    Number(req.body.subtotal)    || 0,  // ✅ add karo
+  discountPct: Number(req.body.discountPct) || 0,
+  discountAmt: Number(req.body.discountAmt) || 0,
+  total:       Number(req.body.total)       || 0,
+  cost:        Number(req.body.cost)        || 0,  // ✅ add karo
+  profit:      Number(req.body.profit)      || 0,
   customer: {
-    name: req.body.customer?.name || "",
+    name:  req.body.customer?.name  || "",
     phone: req.body.customer?.phone || ""
   }
 };

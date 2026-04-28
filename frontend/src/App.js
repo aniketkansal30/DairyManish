@@ -138,7 +138,8 @@ export default function App() {
         if (pass === "aniket123") {
           let discount = prompt("Enter Global Discount %");
 
-          const confirmApply = confirm("Are you sure? This will apply discount permanently.");
+          c
+          const confirmApply = window.confirm("Are you sure? This will apply discount permanently.");
 
           if (confirmApply) {
             await apiCall("/bills/apply-discount", "POST", { discount });

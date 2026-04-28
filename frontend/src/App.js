@@ -602,6 +602,7 @@ function ProductsView({ products, onSave, onDelete }) {
             <Icon name="save" size={16} /> {saving ? "Saving..." : editing ? "Update" : "Add Product"}
           </button>
         </div>
+      
       </div>
 
       <div>

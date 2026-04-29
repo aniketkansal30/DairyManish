@@ -63,6 +63,8 @@ router.post("/", async (req, res) => {
 
       discountApplied: false, // 🔥 IMPORTANT
 
+      paymentMode: req.body.paymentMode || "CASH",
+
       customer: {
         name: req.body.customer?.name || "",
         phone: req.body.customer?.phone || ""

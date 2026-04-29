@@ -1,4 +1,6 @@
 import Login from "./Login";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 import { useState, useEffect, useMemo } from "react";
 
 // ─── API BASE URL ─────────────────────────────────────────────────────────────
@@ -46,6 +48,59 @@ function formatQty(qty, unit) {
   if (unit === "litre") return qty < 1 ? `${Math.round(qty * 1000)} ml` : `${+qty.toFixed(3)} L`;
   return `${qty} ${unit}`;
 }
+function exportToExcel(bills, filterLabel) {
+  const rows = [];
+  bills.forEach(bill => {
+    bill.items?.forEach(item => {
+      rows.push({
+        "Bill ID": bill.id,
+        "Date": formatDate(bill.date),
+        "Time": formatTime(bill.date),
+        "Customer": bill.customer?.name || "-",
+        "Phone": bill.customer?.phone || "-",
+        "Payment": bill.paymentMode || "CASH",
+        "Item": item.name,
+        "Category": item.category || "-",
+        "Unit": item.unit,
+        "Qty": item.qty,
+        "Price (₹)": item.price,
+        "Item Total (₹)": item.total,
+        "Bill Subtotal (₹)": bill.subtotal,
+        "Discount %": bill.discountPct || 0,
+        "Discount Amt (₹)": bill.discountAmt || 0,
+        "Bill Total (₹)": bill.total,
+        "Profit (₹)": bill.profit,
+      });
+    });
+  });
+
+  const summary = [{
+    "": "SUMMARY",
+    "Total Bills": bills.length,
+    "Total Sales (₹)": bills.reduce((s, b) => s + b.total, 0).toFixed(2),
+    "Total Profit (₹)": bills.reduce((s, b) => s + b.profit, 0).toFixed(2),
+    "Cash Sales (₹)": bills.filter(b => (b.paymentMode || "CASH") === "CASH").reduce((s, b) => s + b.total, 0).toFixed(2),
+    "UPI Sales (₹)": bills.filter(b => b.paymentMode === "UPI").reduce((s, b) => s + b.total, 0).toFixed(2),
+  }];
+
+  const wb = XLSX.utils.book_new();
+  const ws1 = XLSX.utils.json_to_sheet(rows);
+  const ws2 = XLSX.utils.json_to_sheet(summary);
+
+  // Column widths
+  ws1["!cols"] = [
+    { wch: 18 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 8 },
+    { wch: 16 }, { wch: 10 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 12 },
+    { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 10 }
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws1, "Bills Detail");
+  XLSX.utils.book_append_sheet(wb, ws2, "Summary");
+
+  const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  saveAs(new Blob([buf], { type: "application/octet-stream" }), `ManishDairy_${filterLabel}_${today()}.xlsx`);
+}
+
 
 // ─── ICONS ────────────────────────────────────────────────────────────────────
 const Icon = ({ name, size = 18 }) => {
@@ -163,7 +218,7 @@ export default function App() {
           const confirmApply = window.confirm("Are you sure? This will apply discount permanently.");
 
           if (confirmApply) {
-            await apiCall("/bills/apply-discount", "POST", { discount });
+            await apiCall("/bills/apply-discount", "POST", { discount: Number(discount) });
             alert("Discount applied to existing data");
             window.location.reload();
           }
@@ -184,6 +239,7 @@ export default function App() {
   const [cart, setCart] = useState([]);
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
+// search change hone par selected clear karo
   const [customerForm, setCustomerForm] = useState({ name: "", phone: "" });
   const [discount, setDiscount] = useState(0);
 
@@ -237,7 +293,7 @@ export default function App() {
   const checkoutBill = async (paymentMode = "CASH") => {
     if (!cart.length) return;
     const bill = {
-      id: "MD" + Date.now(),
+      id: "MD" + Date.now() + Math.random().toString(36).slice(2, 6).toUpperCase(),
       date: new Date().toISOString(),
       items: cart,
       subtotal: cartSubtotal,
@@ -293,10 +349,6 @@ export default function App() {
       alert("Product delete karne mein error: " + e.message);
     }
   };
-  if (!token) return <Login onLogin={(t) => setToken(t)} />;
-
-
-
   // ─── BILL DELETE FUNCTIONS ───────────────────────────────────────────────────
   const handleDeleteBill = async (id) => {
     try {
@@ -315,6 +367,7 @@ export default function App() {
       alert("Saari bills delete karne mein error: " + e.message);
     }
   };
+
   const handleEditBill = async (billId, updatedItems, updatedDiscountPct) => {
     try {
       const updated = await apiCall(`/bills/${billId}`, "PUT", {
@@ -329,6 +382,7 @@ export default function App() {
     }
   };
 
+  if (!token) return <Login onLogin={(t) => setToken(t)} />;
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#f8f5f0", flexDirection: "column", gap: 16 }}>
       <div style={{ fontSize: 48 }}>🥛</div>
@@ -354,7 +408,7 @@ export default function App() {
         setToken(null);
       }} />
       <div style={{ padding: "24px", maxWidth: 1400, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
-        {view === "billing" && <BillingView products={products} filtered={filtered} category={category} setCategory={setCategory} search={search} setSearch={setSearch} cart={cart} setCart={setCart} addToCart={addToCart} updateQty={updateQty} setQtyPreset={setQtyPreset} cartTotal={cartTotal} cartSubtotal={cartSubtotal} discountAmt={discountAmt} discount={discount} setDiscount={setDiscount} customerForm={customerForm} setCustomerForm={setCustomerForm} checkoutBill={checkoutBill} />}
+        {view === "billing" && <BillingView products={products} filtered={filtered} bills={bills} category={category} setCategory={setCategory} search={search} setSearch={setSearch} cart={cart} setCart={setCart} addToCart={addToCart} updateQty={updateQty} setQtyPreset={setQtyPreset} cartTotal={cartTotal} cartSubtotal={cartSubtotal} discountAmt={discountAmt} discount={discount} setDiscount={setDiscount} customerForm={customerForm} setCustomerForm={setCustomerForm} checkoutBill={checkoutBill} />}
         {view === "products" && <ProductsView products={products} onSave={handleSaveProduct} onDelete={handleDeleteProduct} />}
         {view === "sales" && <SalesView bills={bills} onDelete={handleDeleteBill} onDeleteAll={handleDeleteAllBills} onEdit={handleEditBill} products={products} />}
         {view === "analytics" && <AnalyticsView bills={bills} />}
@@ -402,7 +456,7 @@ function Navbar({ view, setView, onLogout }) {
 }
 
 // ─── BILLING VIEW ─────────────────────────────────────────────────────────────
-function BillingView({ products, filtered, category, setCategory, search, setSearch, cart, setCart, addToCart, updateQty, setQtyPreset, cartTotal, cartSubtotal, discountAmt, discount, setDiscount, customerForm, setCustomerForm, checkoutBill }) {
+function BillingView({ products, filtered, bills, category, setCategory, search, setSearch, cart, setCart, addToCart, updateQty, setQtyPreset, cartTotal, cartSubtotal, discountAmt, discount, setDiscount, customerForm, setCustomerForm, checkoutBill }) {
   const [popup, setPopup] = useState(null);
   const [paymentMode, setPaymentMode] = useState("CASH");
   const [heldBills, setHeldBills] = useState([]);
@@ -426,6 +480,28 @@ function BillingView({ products, filtered, category, setCategory, search, setSea
     setHeldBills(prev => prev.filter((_, i) => i !== index));
   };
 
+  // ─── POPULAR ITEMS ─────────────────────────────────────────────────────────
+  const popularIds = useMemo(() => {
+    const countMap = {};
+    bills.forEach(b => b.items?.forEach(i => {
+      countMap[i.id] = (countMap[i.id] || 0) + 1;
+    }));
+    return Object.entries(countMap)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([id]) => id);
+  }, [bills]);
+
+  const sortedFiltered = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      const aIdx = popularIds.indexOf(a.id);
+      const bIdx = popularIds.indexOf(b.id);
+      if (aIdx === -1 && bIdx === -1) return 0;
+      if (aIdx === -1) return 1;
+      if (bIdx === -1) return -1;
+      return aIdx - bIdx;
+    });
+  }, [filtered, popularIds]);
   const openPopup = (product) => {
     const existing = cart.find(i => i.id === product.id);
     setPopup({ ...product, tempQty: existing ? existing.qty : (product.unit === "piece" ? 1 : 0.5), tempAmt: "" });
@@ -459,10 +535,13 @@ function BillingView({ products, filtered, category, setCategory, search, setSea
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..." style={{ width: "100%", padding: "10px 12px 10px 36px", borderRadius: 10, border: "1px solid #e5e0d8", background: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
-            {filtered.map(p => {
+            {sortedFiltered.map(p => {
               const inCart = cart.find(i => i.id === p.id);
               return (
                 <button key={p.id} onClick={() => openPopup(p)} style={{ background: "#fff", border: `2px solid ${inCart ? CAT_COLORS[p.category] || "#f59e0b" : "#e5e0d8"}`, borderRadius: 14, padding: "14px 12px", textAlign: "left", cursor: "pointer", transition: "all 0.15s", position: "relative", boxShadow: inCart ? `0 0 0 3px ${CAT_COLORS[p.category]}22` : "none" }}>
+                  {popularIds.includes(p.id) && !inCart && (
+                    <div style={{ position: "absolute", top: 8, right: 8, background: "#f59e0b", color: "#1a1310", borderRadius: 999, fontSize: 9, fontWeight: 800, padding: "2px 6px" }}>⭐ TOP</div>
+                  )}
                   {inCart && (
                     <div style={{ position: "absolute", top: 8, right: 8, background: CAT_COLORS[p.category] || "#f59e0b", color: "#fff", borderRadius: 999, fontSize: 10, fontWeight: 800, padding: "2px 7px" }}>×{formatQty(inCart.qty, inCart.unit)}</div>
                   )}
@@ -550,8 +629,8 @@ function BillingView({ products, filtered, category, setCategory, search, setSea
               <button onClick={() => setCart([])} style={{ width: 40, height: 42, borderRadius: 10, border: "1.5px solid #fca5a5", background: "#fff", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Icon name="trash" size={15} />
               </button>
-              <button onClick={holdBill} style={{ width: 42, height: 42, borderRadius: 10, background: "#f59e0b", color: "#1a1310", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
-                ⏸️
+              <button onClick={holdBill} style={{ height: 42, padding: "0 14px", borderRadius: 10, background: "#f59e0b", color: "#1a1310", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
+                ⏸️ Hold
               </button>
               <button onClick={() => checkoutBill(paymentMode)} style={{ flex: 1, height: 42, borderRadius: 10, background: "#1a1310", color: "#f59e0b", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                 <Icon name="print" size={15} /> Print & Save
@@ -822,6 +901,9 @@ function SalesView({ bills, onDelete, onDeleteAll, onEdit, products }) {
             🗑️ Delete All
           </button>
         </div>
+        <button onClick={() => exportToExcel(filtered, filter)} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid #16a34a", background: "#f0fdf4", color: "#16a34a" }}>
+          📊 Export Excel
+        </button>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
         {[
@@ -864,6 +946,9 @@ function SalesView({ bills, onDelete, onDeleteAll, onEdit, products }) {
             {b.customer?.name && <div style={{ fontSize: 12, color: "#4a3f35" }}>👤 {b.customer.name}</div>}
             <div style={{ fontSize: 12, color: "#8a7e6e" }}>{b.items?.length} items</div>
             {b.discountPct > 0 && <div style={{ fontSize: 12, color: "#f59e0b", fontWeight: 700 }}>🏷️ {b.discountPct}% off</div>}
+            <div style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 20, background: (b.paymentMode || "CASH") === "UPI" ? "#eff6ff" : "#f0fdf4", color: (b.paymentMode || "CASH") === "UPI" ? "#2563eb" : "#16a34a" }}>
+  {(b.paymentMode || "CASH") === "UPI" ? "📲 UPI" : "💵 CASH"}
+</div>
             <div style={{ textAlign: "right" }}>
               {formatINR(b.total)}
               <div style={{ fontSize: 11, color: "#16a34a" }}>+{formatINR(b.profit)} profit</div>
@@ -997,6 +1082,12 @@ function AnalyticsView({ bills }) {
   }));
   const topItems = Object.entries(itemMap).sort(([, a], [, b]) => b.revenue - a.revenue).slice(0, 8);
   const maxRev = Math.max(...topItems.map(([, v]) => v.revenue), 1);
+  const itemQtyMap = {};
+  bills.forEach(b => b.items?.forEach(i => {
+    if (!itemQtyMap[i.name]) itemQtyMap[i.name] = { qty: 0, unit: i.unit, category: i.category || "Other" };
+    itemQtyMap[i.name].qty += i.qty;
+  }));
+  const itemQtyData = Object.entries(itemQtyMap).sort(([, a], [, b]) => b.qty - a.qty);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -1074,6 +1165,22 @@ function AnalyticsView({ bills }) {
         ))}
         {bills.length === 0 && <div style={{ textAlign: "center", color: "#c9b9a8", padding: "30px 0" }}>No bills yet. Start billing!</div>}
       </div>
+      <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", padding: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 16 }}>📦 Item-wise Total Quantity Sold</div>
+        {itemQtyData.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "20px 0" }}>No data yet</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
+          {itemQtyData.map(([name, v]) => (
+            <div key={name} style={{ background: "#f8f5f0", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e0d8" }}>
+              <div style={{ fontSize: 11, color: CAT_COLORS[v.category] || "#8a7e6e", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{v.category}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 8 }}>{name}</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: CAT_COLORS[v.category] || "#f59e0b" }}>
+                {formatQty(v.qty, v.unit)}
+              </div>
+              <div style={{ fontSize: 11, color: "#8a7e6e", marginTop: 4 }}>Total sold</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1081,6 +1188,7 @@ function AnalyticsView({ bills }) {
 // ─── CUSTOMERS VIEW ───────────────────────────────────────────────────────────
 function CustomersView({ customers, bills, setCart, setView }) {
   const [search, setSearch] = useState("");
+// search change hone par selected clear karo
   const [selected, setSelected] = useState(null);
 
   const filtered = customers.filter(c =>
@@ -1101,7 +1209,7 @@ function CustomersView({ customers, bills, setCart, setView }) {
         <div style={{ padding: "14px 16px", borderBottom: "1px solid #e5e0d8" }}>
           <div style={{ position: "relative" }}>
             <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#8a7e6e" }}><Icon name="search" size={14} /></span>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or phone..." style={{ width: "100%", padding: "8px 10px 8px 32px", border: "1px solid #e5e0d8", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+            <input value={search} onChange={e => { setSearch(e.target.value); setSelected(null); }} placeholder="Search by name or phone..." style={{ width: "100%", padding: "8px 10px 8px 32px", border: "1px solid #e5e0d8", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
           </div>
         </div>
         <div style={{ maxHeight: "70vh", overflowY: "auto" }}>

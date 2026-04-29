@@ -1,4 +1,5 @@
 const express = require("express");
+const Bill = require("./models/Bill");
 const mongoose = require("mongoose");
 const cors = require("cors");
 require("dotenv").config();
@@ -10,10 +11,13 @@ app.use(cors({ origin: "*" }));
 app.use(express.json());
 
 // ─── MongoDB Connection ───────────────────────────────────────────────────────
-mongoose
-  .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/manish_dairy")
-  .then(() => console.log("✅ MongoDB connected — Manish Dairy DB ready"))
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
+mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/manish_dairy")
+  .then(async () => {
+    console.log("✅ MongoDB connected");
+
+    console.log("✅ Old bills updated");
+  })
+  .catch(err => console.error("❌ MongoDB error:", err));
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use("/api/products",  require("./routes/products"));

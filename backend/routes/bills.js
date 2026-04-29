@@ -34,13 +34,10 @@ router.get("/", async (req, res) => {
 });
 
 // POST /api/bills — naya bill banao + customer update karo
-// POST /api/bills/apply-discount
-// POST /api/bills — naya bill save karo
 router.post("/", async (req, res) => {
   try {
     const items = Array.isArray(req.body.items) ? req.body.items : [];
 
-    // ✅ calculate
     const subtotal = items.reduce((sum, i) => sum + (i.price * i.qty), 0);
     const cost     = items.reduce((sum, i) => sum + (i.cost * i.qty), 0);
 
@@ -55,13 +52,14 @@ router.post("/", async (req, res) => {
       date: new Date(),
 
       items,
-
       subtotal,
       discountPct,
       discountAmt,
       total,
       cost,
       profit,
+
+      discountApplied: false, // 🔥 IMPORTANT
 
       customer: {
         name: req.body.customer?.name || "",
@@ -79,18 +77,21 @@ router.post("/", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// POST /api/bills/apply-discount
+// POST /api/bills — naya bill save karo
 router.post("/apply-discount", async (req, res) => {
   try {
     const { discount } = req.body;
     const d = discount / 100;
 
     await Bill.updateMany(
-      {},
+      { discountApplied: false }, // ✅ sirf old untouched bills
       [
         {
           $set: {
             total: { $subtract: ["$total", { $multiply: ["$total", d] }] },
-            profit: { $subtract: ["$profit", { $multiply: ["$profit", d] }] }
+            profit: { $subtract: ["$profit", { $multiply: ["$profit", d] }] },
+            discountApplied: true // ✅ mark kar diya
           }
         }
       ]
@@ -101,6 +102,7 @@ router.post("/apply-discount", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // GET /api/bills/analytics — analytics data
 router.get("/analytics", async (req, res) => {
   try {

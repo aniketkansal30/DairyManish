@@ -25,6 +25,7 @@ const billSchema = new mongoose.Schema(
     total:       { type: Number, required: true },
     cost:        { type: Number, required: true },
     profit:      { type: Number, required: true },
+    discountApplied: { type: Boolean, default: false },
     customer: {
       name:  { type: String, default: "" },
       phone: { type: String, default: "" },

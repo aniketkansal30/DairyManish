@@ -1,3 +1,4 @@
+import Login from "./Login";
 import { useState, useEffect, useMemo } from "react";
 
 // ─── API BASE URL ─────────────────────────────────────────────────────────────
@@ -5,10 +6,12 @@ const API = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
 
 // ─── API HELPER ───────────────────────────────────────────────────────────────
 async function apiCall(path, method = "GET", body = null) {
+  const token = localStorage.getItem("dairy_token");
   const opts = {
     method,
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
     },
   };
 
@@ -78,58 +81,76 @@ const Icon = ({ name, size = 18 }) => {
 
 // ─── BILL PRINT ───────────────────────────────────────────────────────────────
 function printBill(bill) {
-  const w = window.open("", "_blank", "width=380,height=600");
+  const w = window.open("", "_blank", "width=302,height=600");
   w.document.write(`<!DOCTYPE html><html><head><style>
-    *{margin:0;padding:0;box-sizing:border-box;font-family:'Courier New',monospace;}
-    body{padding:16px;font-size:13px;max-width:320px;margin:auto;}
-    .hdr{text-align:center;border-bottom:2px dashed #333;padding-bottom:10px;margin-bottom:10px;}
-    .hdr h1{font-size:20px;font-weight:900;letter-spacing:2px;}
-    .hdr p{font-size:11px;color:#555;}
-    .row{display:flex;justify-content:space-between;padding:3px 0;}
-    .row.bold{font-weight:700;}
-    .divider{border-top:1px dashed #999;margin:8px 0;}
-    .footer{text-align:center;margin-top:12px;font-size:11px;color:#777;}
-    .total-row{display:flex;justify-content:space-between;font-size:15px;font-weight:900;padding:6px 0;border-top:2px solid #333;}
-    @media print{button{display:none;}}
+    @page { margin: 0; size: 80mm auto; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; padding: 4mm; }
+    .center { text-align: center; }
+    .bold { font-weight: 900; }
+    .big { font-size: 16px; font-weight: 900; }
+    .divider-solid { border-top: 2px solid #000; margin: 4px 0; }
+    .divider-dash { border-top: 1px dashed #000; margin: 4px 0; }
+    .row { display: flex; justify-content: space-between; padding: 2px 0; }
+    .row-3 { display: flex; padding: 2px 0; }
+    .col-name { flex: 2.2; }
+    .col-qty { flex: 1; text-align: center; }
+    .col-amt { flex: 1; text-align: right; }
+    .total-row { display: flex; justify-content: space-between; font-size: 15px; font-weight: 900; padding: 4px 0; }
+    .footer { text-align: center; font-size: 11px; margin-top: 6px; }
+    @media print { button { display: none !important; } }
   </style></head><body>
-  <div class="hdr">
-    <h1>🥛 MANISH DAIRY</h1>
-    <p>Ganga Nagar, Meerut</p>
-    <p>Ph: +91-XXXXXXXXXX</p>
-  </div>
+
+  <div class="center bold big">MANISH DAIRY</div>
+  <div class="center" style="font-size:11px;">Ganga Nagar, Meerut</div>
+  <div class="center" style="font-size:11px;">Ph: +91-XXXXXXXXXX</div>
+  <div class="divider-solid"></div>
+
   <div class="row"><span>Date:</span><span>${formatDate(bill.date)} ${formatTime(bill.date)}</span></div>
-  <div class="row"><span>Bill No:</span><span>${bill.id}</span></div>
+  <div class="row"><span>Token No:</span><span>${bill.id}</span></div>
   ${bill.customer?.name ? `<div class="row"><span>Customer:</span><span>${bill.customer.name}</span></div>` : ""}
   ${bill.customer?.phone ? `<div class="row"><span>Phone:</span><span>${bill.customer.phone}</span></div>` : ""}
-  <div class="divider"></div>
-  <div class="row bold"><span style="flex:2">Item</span><span style="flex:1;text-align:right;padding-right:8px">Qty</span><span style="flex:1;text-align:right">Amt</span></div>
-  <div class="divider"></div>
+
+  <div class="divider-solid"></div>
+  <div class="row-3 bold">
+    <span class="col-name">Item</span>
+    <span class="col-qty">Qty</span>
+    <span class="col-amt">Amt</span>
+  </div>
+  <div class="divider-dash"></div>
+
   ${bill.items.map(i => `
-    <div class="row">
-      <span style="flex:2">${i.name}</span>
-      <span style="flex:1;text-align:right;padding-right:8px">${formatQty(i.qty, i.unit)}</span>
-      <span style="flex:1;text-align:right">${formatINR(i.total)}</span>
+    <div class="row-3">
+      <span class="col-name">${i.name}</span>
+      <span class="col-qty">${formatQty(i.qty, i.unit)}</span>
+      <span class="col-amt">₹${i.total.toFixed(2)}</span>
     </div>
   `).join("")}
-  <div class="divider"></div>
+
+  <div class="divider-dash"></div>
   ${bill.discountPct > 0 ? `
-  <div class="row"><span>Subtotal</span><span>${formatINR(bill.subtotal)}</span></div>
-  <div class="row" style="color:#16a34a;font-weight:700"><span>Discount (${bill.discountPct}%)</span><span>-${formatINR(bill.discountAmt)}</span></div>
+    <div class="row"><span>Subtotal</span><span>₹${bill.subtotal.toFixed(2)}</span></div>
+    <div class="row bold"><span>Discount (${bill.discountPct}%)</span><span>-₹${bill.discountAmt.toFixed(2)}</span></div>
   ` : ""}
-  <div class="total-row"><span>TOTAL</span><span>${formatINR(bill.total)}</span></div>
-  <div class="footer">
-    <p>Thank you for visiting!</p>
-    <p>Manish Dairy – Quality Since Day One</p>
-    <p style="margin-top:8px">🕌 Ganga Nagar, Meerut</p>
-  </div>
-  <br/><button onclick="window.print()" style="width:100%;padding:8px;background:#2563eb;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:14px;">🖨️ Print</button>
+  <div class="divider-solid"></div>
+  <div class="total-row"><span>TOTAL</span><span>₹${bill.total.toFixed(2)}</span></div>
+  <div class="divider-solid"></div>
+  <div class="row bold"><span>Payment:</span><span>${bill.paymentMode || "CASH"}</span></div>
+
+  <div class="divider-dash"></div>
+  <div class="footer">Thank you for visiting!</div>
+  <div class="footer">Manish Dairy - Quality Since Day One</div>
+  <div class="footer">Ganga Nagar, Meerut</div>
+  <br/>
+  <button onclick="window.print()" style="width:100%;padding:8px;background:#000;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:14px;font-weight:900;">🖨️ Print</button>
   </body></html>`);
   w.document.close();
   setTimeout(() => w.print(), 500);
 }
-
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const [token, setToken] = useState(localStorage.getItem("dairy_token"));
+  const [view, setView] = useState("billing");
   useEffect(() => {
     const handleKey = async (e) => {
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "d") {
@@ -138,7 +159,7 @@ export default function App() {
         if (pass === "aniket123") {
           let discount = prompt("Enter Global Discount %");
 
-          
+
           const confirmApply = window.confirm("Are you sure? This will apply discount permanently.");
 
           if (confirmApply) {
@@ -153,7 +174,6 @@ export default function App() {
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, []);
-  const [view, setView] = useState("billing");
 
   const [products, setProducts] = useState([]);
   const [bills, setBills] = useState([]);
@@ -214,7 +234,7 @@ export default function App() {
   const discountAmt = cartSubtotal * (discount / 100);
   const cartTotal = cartSubtotal - discountAmt;
 
-  const checkoutBill = async () => {
+  const checkoutBill = async (paymentMode = "CASH") => {
     if (!cart.length) return;
     const bill = {
       id: "MD" + Date.now(),
@@ -227,6 +247,7 @@ export default function App() {
       cost: cartCost,
       profit: cartTotal - cartCost,
       customer: customerForm.name || customerForm.phone ? { ...customerForm } : null,
+      paymentMode,
     };
     try {
       const saved = await apiCall("/bills", "POST", bill);
@@ -272,6 +293,9 @@ export default function App() {
       alert("Product delete karne mein error: " + e.message);
     }
   };
+  if (!token) return <Login onLogin={(t) => setToken(t)} />;
+
+
 
   // ─── BILL DELETE FUNCTIONS ───────────────────────────────────────────────────
   const handleDeleteBill = async (id) => {
@@ -289,6 +313,19 @@ export default function App() {
       setBills([]);
     } catch (e) {
       alert("Saari bills delete karne mein error: " + e.message);
+    }
+  };
+  const handleEditBill = async (billId, updatedItems, updatedDiscountPct) => {
+    try {
+      const updated = await apiCall(`/bills/${billId}`, "PUT", {
+        items: updatedItems,
+        discountPct: updatedDiscountPct,
+      });
+      setBills(prev => prev.map(b => b.id === billId ? updated : b));
+      return true;
+    } catch (e) {
+      alert("Bill edit karne mein error: " + e.message);
+      return false;
     }
   };
 
@@ -312,11 +349,14 @@ export default function App() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#f8f5f0", fontFamily: "'Segoe UI', sans-serif" }}>
-      <Navbar view={view} setView={setView} />
+      <Navbar view={view} setView={setView} onLogout={() => {
+        localStorage.clear();
+        setToken(null);
+      }} />
       <div style={{ padding: "24px", maxWidth: 1400, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
         {view === "billing" && <BillingView products={products} filtered={filtered} category={category} setCategory={setCategory} search={search} setSearch={setSearch} cart={cart} setCart={setCart} addToCart={addToCart} updateQty={updateQty} setQtyPreset={setQtyPreset} cartTotal={cartTotal} cartSubtotal={cartSubtotal} discountAmt={discountAmt} discount={discount} setDiscount={setDiscount} customerForm={customerForm} setCustomerForm={setCustomerForm} checkoutBill={checkoutBill} />}
         {view === "products" && <ProductsView products={products} onSave={handleSaveProduct} onDelete={handleDeleteProduct} />}
-        {view === "sales" && <SalesView bills={bills} onDelete={handleDeleteBill} onDeleteAll={handleDeleteAllBills} />}
+        {view === "sales" && <SalesView bills={bills} onDelete={handleDeleteBill} onDeleteAll={handleDeleteAllBills} onEdit={handleEditBill} products={products} />}
         {view === "analytics" && <AnalyticsView bills={bills} />}
         {view === "customers" && <CustomersView customers={customers} bills={bills} setCart={setCart} setView={setView} />}
       </div>
@@ -325,7 +365,7 @@ export default function App() {
 }
 
 // ─── NAVBAR ───────────────────────────────────────────────────────────────────
-function Navbar({ view, setView }) {
+function Navbar({ view, setView, onLogout }) {
   const nav = [
     { id: "billing", label: "Billing", icon: "cart" },
     { id: "products", label: "Products", icon: "products" },
@@ -354,6 +394,9 @@ function Navbar({ view, setView }) {
       <div style={{ fontSize: 12, color: "#8a7e6e", flexShrink: 0 }}>
         {new Date().toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
       </div>
+      <button onClick={onLogout} style={{ marginLeft: 12, padding: "8px 16px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+        Logout
+      </button>
     </div>
   );
 }
@@ -361,6 +404,27 @@ function Navbar({ view, setView }) {
 // ─── BILLING VIEW ─────────────────────────────────────────────────────────────
 function BillingView({ products, filtered, category, setCategory, search, setSearch, cart, setCart, addToCart, updateQty, setQtyPreset, cartTotal, cartSubtotal, discountAmt, discount, setDiscount, customerForm, setCustomerForm, checkoutBill }) {
   const [popup, setPopup] = useState(null);
+  const [paymentMode, setPaymentMode] = useState("CASH");
+  const [heldBills, setHeldBills] = useState([]);
+
+  const holdBill = () => {
+    if (!cart.length) return;
+    const name = customerForm.name || `Bill #${heldBills.length + 1}`;
+    setHeldBills(prev => [...prev, { name, cart, customerForm, discount, paymentMode }]);
+    setCart([]);
+    setCustomerForm({ name: "", phone: "" });
+    setDiscount(0);
+    setPaymentMode("CASH");
+  };
+
+  const resumeBill = (index) => {
+    const held = heldBills[index];
+    setCart(held.cart);
+    setCustomerForm(held.customerForm);
+    setDiscount(held.discount);
+    setPaymentMode(held.paymentMode);
+    setHeldBills(prev => prev.filter((_, i) => i !== index));
+  };
 
   const openPopup = (product) => {
     const existing = cart.find(i => i.id === product.id);
@@ -419,7 +483,21 @@ function BillingView({ products, filtered, category, setCategory, search, setSea
           <Icon name="cart" size={15} />
           <span style={{ fontSize: 14, fontWeight: 800, color: "#f59e0b" }}>Current Bill</span>
           {cart.length > 0 && <span style={{ marginLeft: "auto", background: "#f59e0b", color: "#1a1310", borderRadius: 999, fontSize: 11, fontWeight: 900, padding: "2px 8px" }}>{cart.length}</span>}
+          {heldBills.length > 0 && (
+            <span onClick={() => { }} style={{ marginLeft: 4, background: "#ef4444", color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 900, padding: "2px 8px", cursor: "pointer" }}>⏸️ {heldBills.length}</span>
+          )}
         </div>
+        {heldBills.length > 0 && (
+          <div style={{ padding: "8px 12px", background: "#fff8ee", borderBottom: "1px solid #f0ebe4" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#92400e", marginBottom: 6 }}>⏸️ HELD BILLS ({heldBills.length})</div>
+            {heldBills.map((b, i) => (
+              <div key={i} onClick={() => resumeBill(i)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 8px", background: "#fff", borderRadius: 8, marginBottom: 4, cursor: "pointer", border: "1px solid #f59e0b" }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#1a1310" }}>{b.name}</span>
+                <span style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700 }}>{b.cart.length} items →</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div style={{ padding: "10px 12px", borderBottom: "1px solid #f0ebe4", display: "flex", flexDirection: "column", gap: 6 }}>
           <input value={customerForm.name} onChange={e => setCustomerForm(p => ({ ...p, name: e.target.value }))} placeholder="👤 Customer Name" style={{ width: "100%", padding: "7px 10px", border: "1px solid #e5e0d8", borderRadius: 8, fontSize: 12, outline: "none", boxSizing: "border-box" }} />
           <input value={customerForm.phone} onChange={e => setCustomerForm(p => ({ ...p, phone: e.target.value }))} placeholder="📱 Phone" style={{ width: "100%", padding: "7px 10px", border: "1px solid #e5e0d8", borderRadius: 8, fontSize: 12, outline: "none", boxSizing: "border-box" }} />
@@ -445,6 +523,13 @@ function BillingView({ products, filtered, category, setCategory, search, setSea
         </div>
         {cart.length > 0 && (
           <div style={{ padding: "12px 14px", borderTop: "2px dashed #e5e0d8" }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              {["CASH", "UPI"].map(mode => (
+                <button key={mode} onClick={() => setPaymentMode(mode)} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: paymentMode === mode ? "#f59e0b" : "#e5e0d8", background: paymentMode === mode ? "#1a1310" : "#fff", color: paymentMode === mode ? "#f59e0b" : "#8a7e6e", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
+                  {mode === "CASH" ? "💵 CASH" : "📲 UPI"}
+                </button>
+              ))}
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, background: "#fff8ee", border: "1.5px dashed #f59e0b", borderRadius: 10, padding: "8px 12px" }}>
               <span style={{ fontSize: 13, color: "#92400e", fontWeight: 700 }}>🏷️ Discount %</span>
               <input type="number" min="0" max="100" value={discount || ""} onChange={e => setDiscount(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} placeholder="0"
@@ -465,7 +550,10 @@ function BillingView({ products, filtered, category, setCategory, search, setSea
               <button onClick={() => setCart([])} style={{ width: 40, height: 42, borderRadius: 10, border: "1.5px solid #fca5a5", background: "#fff", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Icon name="trash" size={15} />
               </button>
-              <button onClick={checkoutBill} style={{ flex: 1, height: 42, borderRadius: 10, background: "#1a1310", color: "#f59e0b", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <button onClick={holdBill} style={{ width: 42, height: 42, borderRadius: 10, background: "#f59e0b", color: "#1a1310", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
+                ⏸️
+              </button>
+              <button onClick={() => checkoutBill(paymentMode)} style={{ flex: 1, height: 42, borderRadius: 10, background: "#1a1310", color: "#f59e0b", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                 <Icon name="print" size={15} /> Print & Save
               </button>
             </div>
@@ -637,15 +725,52 @@ function ProductsView({ products, onSave, onDelete }) {
 }
 
 // ─── SALES VIEW ───────────────────────────────────────────────────────────────
-function SalesView({ bills, onDelete, onDeleteAll }) {
+function SalesView({ bills, onDelete, onDeleteAll, onEdit, products }) {
   const [filter, setFilter] = useState("today");
   const [selected, setSelected] = useState([]);
+  const [editingBill, setEditingBill] = useState(null);
+  const [editItems, setEditItems] = useState([]);
+  const [editDiscount, setEditDiscount] = useState(0);
+  const [editSaving, setEditSaving] = useState(false);
+  const [payFilter, setPayFilter] = useState("ALL");
   const todayStr = today();
   const monthStr = thisMonth();
+  const openEdit = (bill) => {
+    setEditingBill(bill);
+    setEditItems(bill.items.map(i => ({ ...i })));
+    setEditDiscount(bill.discountPct || 0);
+  };
 
+  const updateEditQty = (itemId, qty) => {
+    if (qty <= 0) {
+      setEditItems(prev => prev.filter(i => i.id !== itemId));
+    } else {
+      setEditItems(prev => prev.map(i =>
+        i.id === itemId ? { ...i, qty, total: qty * i.price } : i
+      ));
+    }
+  };
+
+  const addEditItem = (product) => {
+    const exists = editItems.find(i => i.id === product.id);
+    if (exists) {
+      updateEditQty(product.id, exists.qty + 1);
+    } else {
+      setEditItems(prev => [...prev, { ...product, qty: 1, total: product.price }]);
+    }
+  };
+
+  const saveEdit = async () => {
+    if (!editItems.length) { alert("Bill mein kam se kam 1 item hona chahiye!"); return; }
+    setEditSaving(true);
+    const ok = await onEdit(editingBill.id, editItems, editDiscount);
+    if (ok) setEditingBill(null);
+    setEditSaving(false);
+  };
   const filtered = bills.filter(b => {
-    if (filter === "today") return b.date?.slice(0, 10) === todayStr;
-    if (filter === "month") return b.date?.slice(0, 7) === monthStr;
+    if (filter === "today" && b.date?.slice(0, 10) !== todayStr) return false;
+    if (filter === "month" && b.date?.slice(0, 7) !== monthStr) return false;
+    if (payFilter !== "ALL" && (b.paymentMode || "CASH") !== payFilter) return false;
     return true;
   });
 
@@ -682,6 +807,12 @@ function SalesView({ bills, onDelete, onDeleteAll }) {
           {["today", "month", "all"].map(f => (
             <button key={f} onClick={() => setFilter(f)} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid", borderColor: filter === f ? "#f59e0b" : "#e5e0d8", background: filter === f ? "#f59e0b" : "#fff", color: filter === f ? "#1a1310" : "#8a7e6e" }}>{labels[f]}</button>
           ))}
+          <div style={{ width: 1, height: 24, background: "#e5e0d8" }} />
+          {["ALL", "CASH", "UPI"].map(pm => (
+            <button key={pm} onClick={() => setPayFilter(pm)} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid", borderColor: payFilter === pm ? "#2563eb" : "#e5e0d8", background: payFilter === pm ? "#2563eb" : "#fff", color: payFilter === pm ? "#fff" : "#8a7e6e" }}>
+              {pm === "ALL" ? "💳 All" : pm === "CASH" ? "💵 Cash" : "📲 UPI"}
+            </button>
+          ))}
           {selected.length > 0 && (
             <button onClick={deleteSelected} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid #ef4444", background: "#ef4444", color: "#fff" }}>
               🗑️ Delete Selected ({selected.length})
@@ -698,6 +829,19 @@ function SalesView({ bills, onDelete, onDeleteAll }) {
           { label: "Total Profit", value: formatINR(totalProfit), color: "#16a34a", icon: "📈", sub: `${margin}% margin` },
           { label: "Discount Given", value: formatINR(totalDiscount), color: "#f59e0b", icon: "🏷️", sub: `${filtered.filter(b => b.discountPct > 0).length} discounted bills` },
           { label: "Avg Bill Value", value: filtered.length ? formatINR(totalSales / filtered.length) : "₹0.00", color: "#7c3aed", icon: "🧾", sub: "per bill" },
+        ].map(k => (
+          <div key={k.label} style={{ background: "#fff", borderRadius: 16, padding: "20px", border: "1px solid #e5e0d8" }}>
+            <div style={{ fontSize: 22, marginBottom: 6 }}>{k.icon}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>{k.label}</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: k.color, marginBottom: 2 }}>{k.value}</div>
+            <div style={{ fontSize: 12, color: "#8a7e6e" }}>{k.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        {[
+          { label: "Cash Sales", value: formatINR(filtered.filter(b => (b.paymentMode || "CASH") === "CASH").reduce((s, b) => s + b.total, 0)), color: "#16a34a", icon: "💵", sub: `${filtered.filter(b => (b.paymentMode || "CASH") === "CASH").length} bills` },
+          { label: "UPI Sales", value: formatINR(filtered.filter(b => b.paymentMode === "UPI").reduce((s, b) => s + b.total, 0)), color: "#2563eb", icon: "📲", sub: `${filtered.filter(b => b.paymentMode === "UPI").length} bills` },
         ].map(k => (
           <div key={k.label} style={{ background: "#fff", borderRadius: 16, padding: "20px", border: "1px solid #e5e0d8" }}>
             <div style={{ fontSize: 22, marginBottom: 6 }}>{k.icon}</div>
@@ -724,6 +868,9 @@ function SalesView({ bills, onDelete, onDeleteAll }) {
               {formatINR(b.total)}
               <div style={{ fontSize: 11, color: "#16a34a" }}>+{formatINR(b.profit)} profit</div>
             </div>
+            <button onClick={() => openEdit(b)} style={{ padding: "6px 10px", borderRadius: 8, border: "1.5px solid #2563eb", background: "#eff6ff", cursor: "pointer", fontSize: 11, color: "#2563eb", fontWeight: 700, display: "flex", gap: 4, alignItems: "center" }}>
+              <Icon name="edit" size={12} /> Edit
+            </button>
             <button onClick={() => printBill(b)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", fontSize: 11, color: "#4a3f35", display: "flex", gap: 4, alignItems: "center" }}>
               <Icon name="print" size={12} /> Print
             </button>
@@ -732,7 +879,90 @@ function SalesView({ bills, onDelete, onDeleteAll }) {
             </button>
           </div>
         ))}
+
       </div>
+
+      {editingBill && (
+        <>
+          <div onClick={() => setEditingBill(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 300 }} />
+          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: "#fff", borderRadius: 20, padding: 28, width: 520, maxHeight: "85vh", overflowY: "auto", zIndex: 301, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: "#1a1310" }}>✏️ Edit Bill — {editingBill.id}</div>
+                <div style={{ fontSize: 12, color: "#8a7e6e" }}>{formatDate(editingBill.date)} · {formatTime(editingBill.date)}</div>
+              </div>
+              <button onClick={() => setEditingBill(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#8a7e6e" }}>
+                <Icon name="close" size={20} />
+              </button>
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#8a7e6e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Items</div>
+            <div style={{ background: "#f8f5f0", borderRadius: 12, overflow: "hidden", marginBottom: 16 }}>
+              {editItems.map((item, i) => (
+                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderTop: i > 0 ? "1px solid #e5e0d8" : "none" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>{item.name}</div>
+                    <div style={{ fontSize: 11, color: "#8a7e6e" }}>₹{item.price}/{item.unit}</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button onClick={() => updateEditQty(item.id, +(item.qty - (item.unit === "piece" ? 1 : 0.25)).toFixed(3))} style={{ width: 30, height: 30, borderRadius: 8, border: "1.5px solid #e5e0d8", background: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+                    <input type="number" value={item.qty} min="0" step={item.unit === "piece" ? 1 : 0.25} onChange={e => updateEditQty(item.id, +e.target.value)} style={{ width: 64, textAlign: "center", padding: "6px", border: "1.5px solid #e5e0d8", borderRadius: 8, fontSize: 14, fontWeight: 800, outline: "none" }} />
+                    <button onClick={() => updateEditQty(item.id, +(item.qty + (item.unit === "piece" ? 1 : 0.25)).toFixed(3))} style={{ width: 30, height: 30, borderRadius: 8, border: "1.5px solid #e5e0d8", background: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                  </div>
+                  <div style={{ width: 80, textAlign: "right", fontSize: 13, fontWeight: 800, color: "#2563eb" }}>{formatINR(item.qty * item.price)}</div>
+                  <button onClick={() => updateEditQty(item.id, 0)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 4 }}>
+                    <Icon name="trash" size={14} />
+                  </button>
+                </div>
+              ))}
+              {editItems.length === 0 && <div style={{ padding: "20px", textAlign: "center", color: "#c9b9a8", fontSize: 13 }}>Koi item nahi — neeche se add karo</div>}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#8a7e6e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Naya Item Add Karo</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20, maxHeight: 150, overflowY: "auto" }}>
+              {products.map(p => (
+                <button key={p.id} onClick={() => addEditItem(p)} style={{ padding: "6px 12px", borderRadius: 20, border: "1.5px solid #e5e0d8", background: editItems.find(i => i.id === p.id) ? "#1a1310" : "#f8f5f0", color: editItems.find(i => i.id === p.id) ? "#f59e0b" : "#4a3f35", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  + {p.name} ₹{p.price}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff8ee", border: "1.5px dashed #f59e0b", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#92400e" }}>🏷️ Discount %</span>
+              <input type="number" min="0" max="100" value={editDiscount} onChange={e => setEditDiscount(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} style={{ width: 70, padding: "6px", border: "1.5px solid #f59e0b", borderRadius: 8, fontSize: 14, fontWeight: 700, outline: "none", textAlign: "center", marginLeft: "auto" }} />
+            </div>
+            {(() => {
+              const sub = editItems.reduce((s, i) => s + i.qty * i.price, 0);
+              const dAmt = sub * editDiscount / 100;
+              const tot = sub - dAmt;
+              const diff = tot - editingBill.total;
+              return (
+                <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 12, padding: "12px 16px", marginBottom: 20 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8a7e6e", marginBottom: 4 }}>
+                    <span>Subtotal</span><span>{formatINR(sub)}</span>
+                  </div>
+                  {editDiscount > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#16a34a", fontWeight: 700, marginBottom: 4 }}>
+                      <span>Discount ({editDiscount}%)</span><span>− {formatINR(dAmt)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 900, color: "#1a1310", borderTop: "1px solid #bae6fd", paddingTop: 8, marginTop: 4 }}>
+                    <span>New Total</span><span style={{ color: "#2563eb" }}>{formatINR(tot)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6, fontWeight: 700, color: diff >= 0 ? "#16a34a" : "#ef4444" }}>
+                    <span>Sales Change</span><span>{diff >= 0 ? "+" : ""}{formatINR(diff)}</span>
+                  </div>
+                </div>
+              );
+            })()}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setEditingBill(null)} style={{ flex: "0 0 44px", height: 46, borderRadius: 10, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", color: "#8a7e6e", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name="close" size={16} />
+              </button>
+              <button onClick={saveEdit} disabled={editSaving} style={{ flex: 1, padding: "13px", background: "#1a1310", color: "#f59e0b", border: "none", borderRadius: 10, fontWeight: 900, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: editSaving ? 0.7 : 1 }}>
+                <Icon name="save" size={16} /> {editSaving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

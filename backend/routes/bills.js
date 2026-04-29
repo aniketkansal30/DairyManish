@@ -1,8 +1,10 @@
 const router = require("express").Router();
+const authMiddleware = require("../middleware/auth");
 const Bill = require("../models/Bill");
 const Customer = require("../models/Customer");
 
 // GET /api/bills — saare bills (latest pehle), optional ?date=YYYY-MM-DD filter
+router.use(authMiddleware);
 router.get("/", async (req, res) => {
   try {
     const filter = {};
@@ -82,27 +84,58 @@ router.post("/", async (req, res) => {
 router.post("/apply-discount", async (req, res) => {
   try {
     const { discount } = req.body;
-    const d = discount / 100;
+    const d = parseFloat(discount) / 100;
+    if (!d || d <= 0 || d >= 1) return res.status(400).json({ error: "Invalid discount" });
 
-    await Bill.updateMany(
-      { discountApplied: false }, // ✅ sirf old untouched bills
-      [
+    const bills = await Bill.find({});
+    let updated = 0;
+
+    for (const bill of bills) {
+      const newItems = bill.items.map(item => {
+        const newPrice = +(item.price * (1 - d)).toFixed(2);
+        const newCost = +(item.cost * (1 - d)).toFixed(2);
+        const newTotal = +(newPrice * item.qty).toFixed(2);
+        return {
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          unit: item.unit,
+          qty: item.qty,
+          price: newPrice,
+          cost: newCost,
+          total: newTotal,
+        };
+      });
+
+      const newSubtotal  = +newItems.reduce((s, i) => s + i.total, 0).toFixed(2);
+      const newCostTotal = +newItems.reduce((s, i) => s + i.cost * i.qty, 0).toFixed(2);
+      const newDiscountAmt = +(newSubtotal * (bill.discountPct || 0) / 100).toFixed(2);
+      const newTotal     = +(newSubtotal - newDiscountAmt).toFixed(2);
+      const newProfit    = +(newTotal - newCostTotal).toFixed(2);
+
+      await Bill.updateOne(
+        { _id: bill._id },
         {
           $set: {
-            total: { $subtract: ["$total", { $multiply: ["$total", d] }] },
-            profit: { $subtract: ["$profit", { $multiply: ["$profit", d] }] },
-            discountApplied: true // ✅ mark kar diya
+            items: newItems,
+            subtotal: newSubtotal,
+            discountAmt: newDiscountAmt,
+            total: newTotal,
+            cost: newCostTotal,
+            profit: newProfit,
+            discountApplied: true,
           }
         }
-      ]
-    );
+      );
+      updated++;
+    }
 
-    res.json({ success: true });
+    res.json({ success: true, updated });
   } catch (err) {
+    console.log("❌ DISCOUNT ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
-
 // GET /api/bills/analytics — analytics data
 router.get("/analytics", async (req, res) => {
   try {
@@ -168,6 +201,34 @@ router.delete("/all", async (req, res) => {
   }
 });
 
+// PUT /api/bills/:id — bill edit karo
+router.put("/:id", async (req, res) => {
+  try {
+    const bill = await Bill.findOne({ id: req.params.id });
+    if (!bill) return res.status(404).json({ error: "Bill not found" });
+
+    const items = Array.isArray(req.body.items) ? req.body.items : bill.items;
+    const subtotal = items.reduce((sum, i) => sum + (i.price * i.qty), 0);
+    const cost     = items.reduce((sum, i) => sum + (i.cost * i.qty), 0);
+    const discountPct = Number(req.body.discountPct) ?? bill.discountPct;
+    const discountAmt = (subtotal * discountPct) / 100;
+    const total  = subtotal - discountAmt;
+    const profit = total - cost;
+
+    bill.items       = items;
+    bill.subtotal    = subtotal;
+    bill.discountPct = discountPct;
+    bill.discountAmt = discountAmt;
+    bill.total       = total;
+    bill.cost        = cost;
+    bill.profit      = profit;
+
+    await bill.save();
+    res.json(bill);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // DELETE /api/bills/:id — single bill delete karo
 router.delete("/:id", async (req, res) => {
   try {
@@ -177,7 +238,6 @@ router.delete("/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 // GET /api/bills/:id — single bill
 router.get("/:id", async (req, res) => {
   try {

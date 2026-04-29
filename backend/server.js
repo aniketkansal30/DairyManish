@@ -23,6 +23,7 @@ mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/manish_da
 app.use("/api/products",  require("./routes/products"));
 app.use("/api/bills",     require("./routes/bills"));
 app.use("/api/customers", require("./routes/customers"));
+app.use("/api/auth", require("./routes/auth"));
 
 // Health check
 app.get("/api/health", (req, res) => {

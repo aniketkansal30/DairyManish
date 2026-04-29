@@ -1,6 +1,7 @@
 const router  = require("express").Router();
+const authMiddleware = require("../middleware/auth");
 const Product = require("../models/Product");
-
+router.use(authMiddleware);
 const INITIAL_PRODUCTS = [
   { id: "p1",  name: "Paneer",           category: "Dairy",  price: 400, cost: 280, unit: "kg"     },
   { id: "p2",  name: "Doodh (Full Cream)",category: "Dairy",  price: 60,  cost: 42,  unit: "litre"  },

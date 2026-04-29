@@ -1,8 +1,10 @@
 const router   = require("express").Router();
+const authMiddleware = require("../middleware/auth");
 const Customer = require("../models/Customer");
 const Bill     = require("../models/Bill");
 
 // GET /api/customers — saare customers, optional ?search=
+router.use(authMiddleware);
 router.get("/", async (req, res) => {
   try {
     let customers;

@@ -730,7 +730,18 @@ const [cats, setCats] = useState([...["Dairy", "Sweets", "Snacks", "Tandoor"], .
       alert("Category save nahi hui: " + e.message);
     }
   };
-  const save = async () => {
+ const deleteCategory = async (catName) => {
+  if (!window.confirm(`"${catName}" category delete karein?`)) return;
+  try {
+    await apiCall(`/categories/${catName}`, "DELETE");
+    setDbCats(prev => prev.filter(c => c !== catName));
+    setCats(prev => prev.filter(c => c !== catName));
+  } catch (e) {
+    alert("Delete nahi hui: " + e.message);
+  }
+};
+
+const save = async () => {
     if (!form.name || !form.price || !form.cost) return;
     setSaving(true);
     const ok = await onSave(form, editing);
@@ -781,6 +792,14 @@ const [cats, setCats] = useState([...["Dairy", "Sweets", "Snacks", "Tandoor"], .
   <button onClick={addCategory} style={{ padding: "7px 14px", background: "#1a1310", color: "#f59e0b", border: "none", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
     + Add
   </button>
+</div>
+<div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+ {cats.map(c => (
+    <span key={c} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#f0ebe4", borderRadius: 20, padding: "4px 10px", fontSize: 12, fontWeight: 600, color: "#4a3f35" }}>
+      {c}
+      <button onClick={() => deleteCategory(c)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontWeight: 900, fontSize: 13, padding: 0, lineHeight: 1 }}>✕</button>
+    </span>
+  ))}
 </div>
         </div>
         <div style={{ marginBottom: 16 }}>

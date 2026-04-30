@@ -22,5 +22,13 @@ router.post("/", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+router.delete("/:name", async (req, res) => {
+  try {
+    await Category.findOneAndDelete({ name: req.params.name });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;

@@ -415,17 +415,6 @@ export default function App() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#f8f5f0", fontFamily: "'Segoe UI', sans-serif" }}>
-      <Navbar view={view} setView={setView} onLogout={() => {
-        localStorage.clear();
-        setToken(null);
-      }} />
-      <div style={{ padding: "24px", maxWidth: 1400, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
-        {view === "billing" && <BillingView products={products} filtered={filtered} bills={bills} category={category} setCategory={setCategory} search={search} setSearch={setSearch} cart={cart} setCart={setCart} addToCart={addToCart} updateQty={updateQty} setQtyPreset={setQtyPreset} cartTotal={cartTotal} cartSubtotal={cartSubtotal} discountAmt={discountAmt} discount={discount} setDiscount={setDiscount} customerForm={customerForm} setCustomerForm={setCustomerForm} checkoutBill={checkoutBill} dbCats={dbCats} />}
-        {view === "products" && <ProductsView products={products} onSave={handleSaveProduct} onDelete={handleDeleteProduct} dbCats={dbCats} setDbCats={setDbCats} />}
-        {view === "sales" && <SalesView bills={bills} onDelete={handleDeleteBill} onDeleteAll={handleDeleteAllBills} onEdit={handleEditBill} products={products} />}
-        {view === "analytics" && <AnalyticsView bills={bills} />}
-        {view === "customers" && <CustomersView customers={customers} bills={bills} setCart={setCart} setView={setView} />}
-      </div>
       {/* Footer */}
       <div style={{
         backgroundColor: "#1a1310",
@@ -436,6 +425,17 @@ export default function App() {
       }}>
         Developed by <strong style={{ color: "#f59e0b" }}>Aniket Kansal</strong> & <strong style={{ color: "#f59e0b" }}>Akshansh Mittal</strong>
         &nbsp;|&nbsp; 📞 +91-8126700718 & +91-8766392706
+      </div>
+      <Navbar view={view} setView={setView} onLogout={() => {
+        localStorage.clear();
+        setToken(null);
+      }} />
+      <div style={{ padding: "24px", maxWidth: 1400, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+        {view === "billing" && <BillingView products={products} filtered={filtered} bills={bills} category={category} setCategory={setCategory} search={search} setSearch={setSearch} cart={cart} setCart={setCart} addToCart={addToCart} updateQty={updateQty} setQtyPreset={setQtyPreset} cartTotal={cartTotal} cartSubtotal={cartSubtotal} discountAmt={discountAmt} discount={discount} setDiscount={setDiscount} customerForm={customerForm} setCustomerForm={setCustomerForm} checkoutBill={checkoutBill} dbCats={dbCats} />}
+        {view === "products" && <ProductsView products={products} onSave={handleSaveProduct} onDelete={handleDeleteProduct} dbCats={dbCats} setDbCats={setDbCats} />}
+        {view === "sales" && <SalesView bills={bills} onDelete={handleDeleteBill} onDeleteAll={handleDeleteAllBills} onEdit={handleEditBill} products={products} />}
+        {view === "analytics" && <AnalyticsView bills={bills} />}
+        {view === "customers" && <CustomersView customers={customers} bills={bills} setCart={setCart} setView={setView} />}
       </div>
     </div>
   );

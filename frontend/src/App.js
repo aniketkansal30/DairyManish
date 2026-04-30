@@ -33,7 +33,7 @@ const DEFAULT_CATS = ["Sweets", "Snacks", "Tandoor"];
 let CUSTOM_CATS = JSON.parse(localStorage.getItem("dairy_cats") || "[]");
 const getAllCats = () => [...DEFAULT_CATS, ...CUSTOM_CATS];
 
-const CAT_ICONS = { Sweets: "🍬", Snacks: "🥨", Tandoor: "🔥", All: "🏪", Dahi: "🥛", "Dry Fruit Thal": "🎁", "Extra Items": "➕", Amul: "🧈", Cookies: "🍪", GHEWAR: "🍮" , GUNJIA: "🥟", Kachori: "🫓", Paneer: "🧀", Milk: "🥛", Namkeen: "🧂", Other: "📦", "Gravy Items": "🍛" };
+const CAT_ICONS = { Sweets: "🍬", Snacks: "🥨", Tandoor: "🔥", All: "🏪", Dahi: "🥛", "Dry Fruit Thal": "🎁", "Extra Items": "➕", Amul: "🧈", Cookies: "🍪", GHEWAR: "🍮", GUNJIA: "🥟", Kachori: "🫓", Paneer: "🧀", Milk: "🥛", Namkeen: "🧂", Other: "📦", "Gravy Items": "🍛" };
 const CAT_COLORS = { Sweets: "#ec4899", Snacks: "#f59e0b", Tandoor: "#ef4444" };
 
 // ─── UTILITY FUNCTIONS ────────────────────────────────────────────────────────
@@ -757,7 +757,7 @@ function ProductsView({ products, onSave, onDelete, dbCats, setDbCats }) {
   };
 
   const save = async () => {
-    if (!form.name || !form.price || !form.cost) return;
+    if (!form.name || form.price === "" || form.cost === "") return;
     setSaving(true);
     const ok = await onSave(form, editing);
     if (ok) {

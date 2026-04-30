@@ -417,11 +417,15 @@ export default function App() {
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#f8f5f0", fontFamily: "'Segoe UI', sans-serif" }}>
       {/* Footer */}
       <div style={{
-        backgroundColor: "#1a1310",
-        color: "#f5f0eb",
+        backgroundColor: "#f59e0b",
+        color: "#1a1310",
         textAlign: "center",
-        padding: "14px",
-        fontSize: "13px"
+        padding: "8px",
+        fontSize: "13px",
+        fontWeight: 700,
+        position: "sticky",
+        top: 0,
+        zIndex: 100,
       }}>
         Developed by <strong style={{ color: "#f59e0b" }}>Aniket Kansal</strong> & <strong style={{ color: "#f59e0b" }}>Akshansh Mittal</strong>
         &nbsp;|&nbsp; 📞 +91-8126700718 & +91-8766392706

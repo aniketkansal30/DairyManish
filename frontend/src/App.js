@@ -162,7 +162,7 @@ function printBill(bill) {
   </style></head><body>
 
   <div class="center bold big">MANISH DAIRY</div>
-  <div class="center" style="font-size:11px;">Ganga Nagar, Meerut</div>
+  <div class="center" style="font-size:11px;">Jail Chungi, Meerut</div>
   <div class="center" style="font-size:11px;">Ph: +91-XXXXXXXXXX</div>
   <div class="divider-solid"></div>
 

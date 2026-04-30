@@ -28,6 +28,11 @@ async function apiCall(path, method = "GET", body = null) {
 
   return res.json();
 }
+// Baad mein
+const DEFAULT_CATS = ["Dairy", "Sweets", "Snacks", "Tandoor"];
+let CUSTOM_CATS = JSON.parse(localStorage.getItem("dairy_cats") || "[]");
+const getAllCats = () => [...DEFAULT_CATS, ...CUSTOM_CATS];
+
 const CAT_ICONS = { Dairy: "🥛", Sweets: "🍬", Snacks: "🥨", Tandoor: "🔥", All: "🏪" };
 const CAT_COLORS = { Dairy: "#3b82f6", Sweets: "#ec4899", Snacks: "#f59e0b", Tandoor: "#ef4444" };
 
@@ -708,6 +713,16 @@ function ProductsView({ products, onSave, onDelete }) {
   const [editing, setEditing] = useState(null);
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
+  const [cats, setCats] = useState(getAllCats());        // ← YEH ADD KARO
+  const [newCat, setNewCat] = useState("");    
+   const addCategory = () => {
+    const trimmed = newCat.trim();
+    if (!trimmed || cats.includes(trimmed)) return;
+    CUSTOM_CATS = [...CUSTOM_CATS, trimmed];
+    localStorage.setItem("dairy_cats", JSON.stringify(CUSTOM_CATS));
+    setCats(getAllCats());
+    setNewCat("");
+  };
 
   const save = async () => {
     if (!form.name || !form.price || !form.cost) return;
@@ -747,8 +762,20 @@ function ProductsView({ products, onSave, onDelete }) {
         <div style={{ marginBottom: 12 }}>
           <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 0.5, textTransform: "uppercase" }}>Category</label>
           <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} style={{ width: "100%", padding: "9px 12px", border: "1px solid #e5e0d8", borderRadius: 8, fontSize: 14, outline: "none", marginTop: 4, background: "#fff" }}>
-            {["Dairy", "Sweets", "Snacks", "Tandoor"].map(c => <option key={c}>{c}</option>)}
+            {cats.map(c => <option key={c}>{c}</option>)}
           </select>
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+  <input
+    value={newCat}
+    onChange={e => setNewCat(e.target.value)}
+    onKeyDown={e => e.key === "Enter" && addCategory()}
+    placeholder="Nai category..."
+    style={{ flex: 1, padding: "7px 10px", border: "1px solid #e5e0d8", borderRadius: 8, fontSize: 13, outline: "none" }}
+  />
+  <button onClick={addCategory} style={{ padding: "7px 14px", background: "#1a1310", color: "#f59e0b", border: "none", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
+    + Add
+  </button>
+</div>
         </div>
         <div style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 0.5, textTransform: "uppercase" }}>Unit</label>

@@ -2,6 +2,7 @@ const express = require("express");
 const Bill = require("./models/Bill");
 const mongoose = require("mongoose");
 const cors = require("cors");
+
 require("dotenv").config();
 
 const app = express();
@@ -24,6 +25,7 @@ app.use("/api/products",  require("./routes/products"));
 app.use("/api/bills",     require("./routes/bills"));
 app.use("/api/customers", require("./routes/customers"));
 app.use("/api/auth", require("./routes/auth"));
+app.use("/api/categories", require("./routes/categories"));
 
 // Health check
 app.get("/api/health", (req, res) => {

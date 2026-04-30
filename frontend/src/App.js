@@ -33,7 +33,7 @@ const DEFAULT_CATS = ["Sweets", "Snacks", "Tandoor"];
 let CUSTOM_CATS = JSON.parse(localStorage.getItem("dairy_cats") || "[]");
 const getAllCats = () => [...DEFAULT_CATS, ...CUSTOM_CATS];
 
-const CAT_ICONS = { Dairy: "🥛", Sweets: "🍬", Snacks: "🥨", Tandoor: "🔥", All: "🏪" };
+const CAT_ICONS = { Sweets: "🍬", Snacks: "🥨", Tandoor: "🔥", All: "🏪",Dahi: "🥛","Dry Fruit Thal": "🎁","Extra Items": "➕",Amul: "🧈",Cookies: "🍪",GHEWAR: "🍮",};
 const CAT_COLORS = { Dairy: "#3b82f6", Sweets: "#ec4899", Snacks: "#f59e0b", Tandoor: "#ef4444" };
 
 // ─── UTILITY FUNCTIONS ────────────────────────────────────────────────────────

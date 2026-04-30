@@ -528,7 +528,7 @@ function BillingView({ products, filtered, bills, category, setCategory, search,
         <div style={{ display: "flex", flexDirection: "column", gap: 4, width: 100, flexShrink: 0 }}>
           {["All", ...getAllCats()].map(c => (
             <button key={c} onClick={() => setCategory(c)} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, padding: "12px 8px", borderRadius: 14, border: "2px solid", borderColor: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#e5e0d8", background: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#fff", color: category === c ? "#fff" : "#4a3f35", fontSize: 12, fontWeight: category === c ? 800 : 500, cursor: "pointer", transition: "all 0.15s", boxShadow: category === c ? `0 4px 12px ${(CAT_COLORS[c] || "#f59e0b")}44` : "none" }}>
-              <span style={{ fontSize: 20 }}>{CAT_ICONS[c]}</span>
+             <span style={{ fontSize: 20 }}>{CAT_ICONS[c] || "🏷️"}</span>
               {c}
             </button>
           ))}

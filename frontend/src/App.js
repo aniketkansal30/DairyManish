@@ -416,7 +416,7 @@ setDbCats(cats);
         setToken(null);
       }} />
       <div style={{ padding: "24px", maxWidth: 1400, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
-        {view === "billing" && <BillingView products={products} filtered={filtered} bills={bills} category={category} setCategory={setCategory} search={search} setSearch={setSearch} cart={cart} setCart={setCart} addToCart={addToCart} updateQty={updateQty} setQtyPreset={setQtyPreset} cartTotal={cartTotal} cartSubtotal={cartSubtotal} discountAmt={discountAmt} discount={discount} setDiscount={setDiscount} customerForm={customerForm} setCustomerForm={setCustomerForm} checkoutBill={checkoutBill} />}
+          {view === "billing" && <BillingView products={products} filtered={filtered} bills={bills} category={category} setCategory={setCategory} search={search} setSearch={setSearch} cart={cart} setCart={setCart} addToCart={addToCart} updateQty={updateQty} setQtyPreset={setQtyPreset} cartTotal={cartTotal} cartSubtotal={cartSubtotal} discountAmt={discountAmt} discount={discount} setDiscount={setDiscount} customerForm={customerForm} setCustomerForm={setCustomerForm} checkoutBill={checkoutBill} dbCats={dbCats} />}
        {view === "products" && <ProductsView products={products} onSave={handleSaveProduct} onDelete={handleDeleteProduct} dbCats={dbCats} setDbCats={setDbCats} />}
         {view === "sales" && <SalesView bills={bills} onDelete={handleDeleteBill} onDeleteAll={handleDeleteAllBills} onEdit={handleEditBill} products={products} />}
         {view === "analytics" && <AnalyticsView bills={bills} />}
@@ -464,7 +464,7 @@ function Navbar({ view, setView, onLogout }) {
 }
 
 // ─── BILLING VIEW ─────────────────────────────────────────────────────────────
-function BillingView({ products, filtered, bills, category, setCategory, search, setSearch, cart, setCart, addToCart, updateQty, setQtyPreset, cartTotal, cartSubtotal, discountAmt, discount, setDiscount, customerForm, setCustomerForm, checkoutBill }) {
+function BillingView({ products, filtered, bills, category, setCategory, search, setSearch, cart, setCart, addToCart, updateQty, setQtyPreset, cartTotal, cartSubtotal, discountAmt, discount, setDiscount, customerForm, setCustomerForm, checkoutBill, dbCats }) {
   const [popup, setPopup] = useState(null);
   const [paymentMode, setPaymentMode] = useState("CASH");
   const [heldBills, setHeldBills] = useState([]);
@@ -529,7 +529,7 @@ function BillingView({ products, filtered, bills, category, setCategory, search,
     <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20, alignItems: "start" }}>
       <div style={{ display: "flex", gap: 16 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4, width: 100, flexShrink: 0 }}>
-          {["All", ...getAllCats()].map(c => (
+         {["All", ...["Dairy","Sweets","Snacks","Tandoor"], ...dbCats].map(c => (
             <button key={c} onClick={() => setCategory(c)} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, padding: "12px 8px", borderRadius: 14, border: "2px solid", borderColor: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#e5e0d8", background: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#fff", color: category === c ? "#fff" : "#4a3f35", fontSize: 12, fontWeight: category === c ? 800 : 500, cursor: "pointer", transition: "all 0.15s", boxShadow: category === c ? `0 4px 12px ${(CAT_COLORS[c] || "#f59e0b")}44` : "none" }}>
              <span style={{ fontSize: 20 }}>{CAT_ICONS[c] || "🏷️"}</span>
               {c}

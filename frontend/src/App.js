@@ -238,7 +238,8 @@ export default function App() {
   const [products, setProducts] = useState([]);
   const [bills, setBills] = useState([]);
   const [customers, setCustomers] = useState([]);
-  const [loading, setLoading] = useState(true);
+const [dbCats, setDbCats] = useState([]);
+const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const [cart, setCart] = useState([]);
@@ -252,14 +253,16 @@ export default function App() {
     async function loadAll() {
       try {
         setLoading(true);
-        const [prods, bls, custs] = await Promise.all([
-          apiCall("/products"),
-          apiCall("/bills"),
-          apiCall("/customers"),
-        ]);
-        setProducts(prods);
-        setBills(bls);
-        setCustomers(custs);
+       const [prods, bls, custs, cats] = await Promise.all([
+  apiCall("/products"),
+  apiCall("/bills"),
+  apiCall("/customers"),
+  apiCall("/categories"),
+]);
+setProducts(prods);
+setBills(bls);
+setCustomers(custs);
+setDbCats(cats);
       } catch (e) {
         setError("Server se connect nahi ho paya. Backend chal raha hai? " + e.message);
       } finally {
@@ -414,7 +417,7 @@ export default function App() {
       }} />
       <div style={{ padding: "24px", maxWidth: 1400, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
         {view === "billing" && <BillingView products={products} filtered={filtered} bills={bills} category={category} setCategory={setCategory} search={search} setSearch={setSearch} cart={cart} setCart={setCart} addToCart={addToCart} updateQty={updateQty} setQtyPreset={setQtyPreset} cartTotal={cartTotal} cartSubtotal={cartSubtotal} discountAmt={discountAmt} discount={discount} setDiscount={setDiscount} customerForm={customerForm} setCustomerForm={setCustomerForm} checkoutBill={checkoutBill} />}
-        {view === "products" && <ProductsView products={products} onSave={handleSaveProduct} onDelete={handleDeleteProduct} />}
+       {view === "products" && <ProductsView products={products} onSave={handleSaveProduct} onDelete={handleDeleteProduct} dbCats={dbCats} setDbCats={setDbCats} />}
         {view === "sales" && <SalesView bills={bills} onDelete={handleDeleteBill} onDeleteAll={handleDeleteAllBills} onEdit={handleEditBill} products={products} />}
         {view === "analytics" && <AnalyticsView bills={bills} />}
         {view === "customers" && <CustomersView customers={customers} bills={bills} setCart={setCart} setView={setView} />}
@@ -708,22 +711,25 @@ function BillingView({ products, filtered, bills, category, setCategory, search,
 const popBtn = { width: 44, height: 44, borderRadius: 10, border: "1.5px solid #e5e0d8", background: "#f8f5f0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#4a3f35", flexShrink: 0, fontSize: 18 };
 
 // ─── PRODUCTS VIEW ────────────────────────────────────────────────────────────
-function ProductsView({ products, onSave, onDelete }) {
+function ProductsView({ products, onSave, onDelete, dbCats, setDbCats }) {
   const [form, setForm] = useState({ name: "", category: "Dairy", price: "", cost: "", unit: "kg" });
   const [editing, setEditing] = useState(null);
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
-  const [cats, setCats] = useState(getAllCats());        // ← YEH ADD KARO
+const [cats, setCats] = useState([...["Dairy", "Sweets", "Snacks", "Tandoor"], ...dbCats]);      // ← YEH ADD KARO
   const [newCat, setNewCat] = useState("");    
-   const addCategory = () => {
+  const addCategory = async () => {
     const trimmed = newCat.trim();
     if (!trimmed || cats.includes(trimmed)) return;
-    CUSTOM_CATS = [...CUSTOM_CATS, trimmed];
-    localStorage.setItem("dairy_cats", JSON.stringify(CUSTOM_CATS));
-    setCats(getAllCats());
-    setNewCat("");
+    try {
+      await apiCall("/categories", "POST", { name: trimmed });
+      setDbCats(prev => [...prev, trimmed]);
+      setCats(prev => [...prev, trimmed]);
+      setNewCat("");
+    } catch (e) {
+      alert("Category save nahi hui: " + e.message);
+    }
   };
-
   const save = async () => {
     if (!form.name || !form.price || !form.cost) return;
     setSaving(true);

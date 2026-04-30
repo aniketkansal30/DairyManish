@@ -416,11 +416,12 @@ export default function App() {
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#f8f5f0", fontFamily: "'Segoe UI', sans-serif" }}>
       {/* Footer */}
+
       <div style={{
-        backgroundColor: "#f59e0b",
-        color: "#1a1310",
+        backgroundColor: "#1a1310",
+        color: "#f5f0eb",
         textAlign: "center",
-        padding: "8px",
+        padding: "14px",
         fontSize: "13px",
         fontWeight: 700,
         position: "sticky",

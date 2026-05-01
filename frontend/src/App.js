@@ -632,19 +632,11 @@ function BillingView({ products, filtered, bills, category, setCategory, search,
                 </button>
               ))}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, background: "#fff8ee", border: "1.5px dashed #f59e0b", borderRadius: 10, padding: "8px 12px" }}>
-              <span style={{ fontSize: 13, color: "#92400e", fontWeight: 700 }}>🏷️ Discount %</span>
-              <input type="number" min="0" max="100" value={discount || ""} onChange={e => setDiscount(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} placeholder="0"
-                style={{ width: 60, padding: "5px 6px", border: "1.5px solid #f59e0b", borderRadius: 8, fontSize: 14, fontWeight: 700, outline: "none", textAlign: "center", marginLeft: "auto", background: "#fff" }} />
-            </div>
+            
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8a7e6e", marginBottom: 3 }}>
               <span>Subtotal</span><span>{formatINR(cartSubtotal)}</span>
             </div>
-            {discount > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#16a34a", fontWeight: 700, marginBottom: 3 }}>
-                <span>Discount ({discount}%)</span><span>− {formatINR(discountAmt)}</span>
-              </div>
-            )}
+            
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 19, fontWeight: 900, color: "#1a1310", marginBottom: 12, borderTop: "1.5px solid #e5e0d8", paddingTop: 8, marginTop: 4 }}>
               <span>Total</span><span style={{ color: "#2563eb" }}>{formatINR(cartTotal)}</span>
             </div>

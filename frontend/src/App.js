@@ -204,7 +204,7 @@ function printBill(bill) {
   <div class="divider-dash"></div>
   <div class="footer">Thank you for visiting!</div>
 
-  <div class="footer">Jail Chungi, Meerut</div>
+  
   <br/>
   
   </body></html>`);

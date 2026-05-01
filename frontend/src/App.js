@@ -247,7 +247,7 @@ export default function App() {
   const [error, setError] = useState(null);
 
   const [cart, setCart] = useState([]);
-  const [category, setCategory] = useState("All");
+  const [category, setCategory] = useState("Sweets");
   const [search, setSearch] = useState("");
   // search change hone par selected clear karo
   const [customerForm, setCustomerForm] = useState({ name: "", phone: "" });
@@ -338,11 +338,13 @@ export default function App() {
       if (editingId) {
         const updated = await apiCall(`/products/${editingId}`, "PUT", {
           ...formData, price: +formData.price, cost: +formData.cost,
+          hasVariation: formData.hasVariation, halfPrice: +formData.halfPrice || 0, fullPrice: +formData.fullPrice || 0,
         });
         setProducts(prev => prev.map(p => p.id === editingId ? updated : p));
       } else {
         const created = await apiCall("/products", "POST", {
           ...formData, price: +formData.price, cost: +formData.cost,
+          hasVariation: formData.hasVariation, halfPrice: +formData.halfPrice || 0, fullPrice: +formData.fullPrice || 0,
         });
         setProducts(prev => [...prev, created]);
       }
@@ -527,26 +529,34 @@ function BillingView({ products, filtered, bills, category, setCategory, search,
   }, [filtered, popularIds]);
   const openPopup = (product) => {
     const existing = cart.find(i => i.id === product.id);
-    setPopup({ ...product, tempQty: existing ? existing.qty : (product.unit === "piece" ? 1 : 0.5), tempAmt: "" });
+    setPopup({ ...product, tempQty: existing ? existing.qty : (product.unit === "piece" ? 1 : 0.5), tempAmt: "", selectedVariation: product.hasVariation ? (existing?.selectedVariation || null) : null });
   };
-
   const confirmPopup = () => {
     if (!popup) return;
     const qty = parseFloat(popup.tempQty) || 0;
     if (qty <= 0) { updateQty(popup.id, 0); setPopup(null); return; }
-    const inCart = cart.find(i => i.id === popup.id);
-    if (!inCart) addToCart(popup);
-    updateQty(popup.id, qty);
+    if (popup.hasVariation && !popup.selectedVariation) { alert("Pehle HALF ya FULL select karo!"); return; }
+    const itemToAdd = {
+      ...popup,
+      name: popup.hasVariation ? `${popup.name} (${popup.selectedVariation === "half" ? "Half" : "Full"})` : popup.name,
+      price: popup.hasVariation ? (popup.selectedVariation === "half" ? popup.halfPrice : popup.fullPrice) : popup.price,
+    };
+    const inCart = cart.find(i => i.id === popup.id && i.selectedVariation === popup.selectedVariation);
+    if (!inCart) {
+      setCart(prev => [...prev.filter(i => !(i.id === popup.id && i.selectedVariation === popup.selectedVariation)), { ...itemToAdd, qty, total: qty * itemToAdd.price, selectedVariation: popup.selectedVariation }]);
+    } else {
+      setCart(prev => prev.map(i => i.id === popup.id && i.selectedVariation === popup.selectedVariation ? { ...i, qty, total: qty * i.price } : i));
+    }
     setPopup(null);
   };
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20, alignItems: "start" }}>
       <div style={{ display: "flex", gap: 16 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, width: 100, flexShrink: 0 }}>
-          {["All", ...["Sweets", "Snacks", "Tandoor"], ...dbCats].map(c => (
-            <button key={c} onClick={() => setCategory(c)} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, padding: "12px 8px", borderRadius: 14, border: "2px solid", borderColor: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#e5e0d8", background: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#fff", color: category === c ? "#fff" : "#4a3f35", fontSize: 12, fontWeight: category === c ? 800 : 500, cursor: "pointer", transition: "all 0.15s", boxShadow: category === c ? `0 4px 12px ${(CAT_COLORS[c] || "#f59e0b")}44` : "none" }}>
-              <span style={{ fontSize: 20 }}>{CAT_ICONS[c] || "🏷️"}</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, width: 72, flexShrink: 0, maxHeight: "calc(100vh - 160px)", overflowY: "auto" }}>
+          {["Milk", "Dahi", "Paneer", "Namkeen", "Kachori", "Sweets", "Amul", "Snacks", "Tandoor", "Cookies", "Dry Fruit Thal", "Other", "Gravy Items"].map(c => (
+            <button key={c} onClick={() => setCategory(c)} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, padding: "6px 4px", borderRadius: 10, border: "2px solid", borderColor: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#e5e0d8", background: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#fff", color: category === c ? "#fff" : "#4a3f35", fontSize: 10, fontWeight: category === c ? 800 : 500, cursor: "pointer", transition: "all 0.15s", boxShadow: category === c ? `0 4px 12px ${(CAT_COLORS[c] || "#f59e0b")}44` : "none" }}>
+              <span style={{ fontSize: 16 }}>{CAT_ICONS[c] || "🏷️"}</span>
               {c}
             </button>
           ))}
@@ -677,6 +687,21 @@ function BillingView({ products, filtered, bills, category, setCategory, search,
                 <Icon name="close" size={20} />
               </button>
             </div>
+            {popup.hasVariation && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Half ya Full?</div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={() => setPopup(p => ({ ...p, tempQty: 1, tempAmt: "", selectedVariation: "half", price: p.halfPrice }))}
+                    style={{ flex: 1, padding: "14px", borderRadius: 12, fontWeight: 900, fontSize: 15, cursor: "pointer", border: "2px solid", borderColor: popup.selectedVariation === "half" ? "#f59e0b" : "#e5e0d8", background: popup.selectedVariation === "half" ? "#1a1310" : "#f8f5f0", color: popup.selectedVariation === "half" ? "#f59e0b" : "#4a3f35" }}>
+                    HALF<br /><span style={{ fontSize: 13, fontWeight: 700 }}>₹{popup.halfPrice}</span>
+                  </button>
+                  <button onClick={() => setPopup(p => ({ ...p, tempQty: 1, tempAmt: "", selectedVariation: "full", price: p.fullPrice }))}
+                    style={{ flex: 1, padding: "14px", borderRadius: 12, fontWeight: 900, fontSize: 15, cursor: "pointer", border: "2px solid", borderColor: popup.selectedVariation === "full" ? "#ef4444" : "#e5e0d8", background: popup.selectedVariation === "full" ? "#ef4444" : "#f8f5f0", color: popup.selectedVariation === "full" ? "#fff" : "#4a3f35" }}>
+                    FULL<br /><span style={{ fontSize: 13, fontWeight: 700 }}>₹{popup.fullPrice}</span>
+                  </button>
+                </div>
+              </div>
+            )}
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
                 {popup.unit === "piece" ? "Kitne piece?" : "Kitna weight?"}
@@ -719,7 +744,7 @@ const popBtn = { width: 44, height: 44, borderRadius: 10, border: "1.5px solid #
 
 // ─── PRODUCTS VIEW ────────────────────────────────────────────────────────────
 function ProductsView({ products, onSave, onDelete, dbCats, setDbCats }) {
-  const [form, setForm] = useState({ name: "", category: "Sweets", price: "", cost: "", unit: "kg" });
+  const [form, setForm] = useState({ name: "", category: "Sweets", price: "", cost: "", unit: "kg", hasVariation: false, halfPrice: "", fullPrice: "" });
   const [editing, setEditing] = useState(null);
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
@@ -761,7 +786,7 @@ function ProductsView({ products, onSave, onDelete, dbCats, setDbCats }) {
 
   const edit = (p) => {
     setEditing(p.id);
-    setForm({ name: p.name, category: p.category, price: p.price, cost: p.cost, unit: p.unit });
+    setForm({ name: p.name, category: p.category, price: p.price, cost: p.cost, unit: p.unit, hasVariation: p.hasVariation || false, halfPrice: p.halfPrice || "", fullPrice: p.fullPrice || "" });
   };
 
   const del = async (id) => {
@@ -817,6 +842,30 @@ function ProductsView({ products, onSave, onDelete, dbCats, setDbCats }) {
             ))}
           </div>
         </div>
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 0.5, textTransform: "uppercase" }}>Half / Full Variation</label>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
+            <button onClick={() => setForm(p => ({ ...p, hasVariation: !p.hasVariation }))}
+              style={{ padding: "7px 16px", borderRadius: 8, border: `1.5px solid ${form.hasVariation ? "#f59e0b" : "#e5e0d8"}`, background: form.hasVariation ? "#1a1310" : "#fff", color: form.hasVariation ? "#f59e0b" : "#8a7e6e", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
+              {form.hasVariation ? "✅ ON" : "OFF"}
+            </button>
+            <span style={{ fontSize: 12, color: "#8a7e6e" }}>Toggle for Tandoor/Gravy items</span>
+          </div>
+          {form.hasVariation && (
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e" }}>HALF Price (₹)</label>
+                <input type="number" value={form.halfPrice} onChange={e => setForm(p => ({ ...p, halfPrice: e.target.value }))} placeholder="e.g. 130"
+                  style={{ width: "100%", padding: "8px 10px", border: "1.5px solid #f59e0b", borderRadius: 8, fontSize: 14, outline: "none", marginTop: 4, boxSizing: "border-box" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e" }}>FULL Price (₹)</label>
+                <input type="number" value={form.fullPrice} onChange={e => setForm(p => ({ ...p, fullPrice: e.target.value }))} placeholder="e.g. 230"
+                  style={{ width: "100%", padding: "1.5px solid #f59e0b", borderRadius: 8, fontSize: 14, outline: "none", marginTop: 4, boxSizing: "border-box", border: "1.5px solid #f59e0b", padding: "8px 10px" }} />
+              </div>
+            </div>
+          )}
+        </div>
         {form.price && form.cost && (
           <div style={{ marginBottom: 12, padding: "8px 12px", background: "#f0fdf4", borderRadius: 8, fontSize: 12 }}>
             Margin: <strong style={{ color: "#16a34a" }}>₹{+form.price - +form.cost}</strong> ({Math.round(((+form.price - +form.cost) / +form.price) * 100)}%)
@@ -831,7 +880,8 @@ function ProductsView({ products, onSave, onDelete, dbCats, setDbCats }) {
 
       </div>
 
-      <div>
+
+      <div style={{ maxHeight: "calc(100vh - 100px)", overflowY: "auto", paddingRight: 4 }}>
         <div style={{ position: "relative", marginBottom: 16 }}>
           <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#8a7e6e" }}><Icon name="search" size={16} /></span>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..." style={{ width: "100%", padding: "10px 12px 10px 36px", borderRadius: 10, border: "1px solid #e5e0d8", background: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />

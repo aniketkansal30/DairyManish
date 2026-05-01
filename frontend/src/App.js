@@ -1017,7 +1017,7 @@ function SalesView({ bills, onDelete, onDeleteAll, onEdit, products }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
         {[
           { label: "Total Sales", value: formatINR(totalSales), color: "#2563eb", icon: "💳", sub: `${filtered.length} bills` },
-          { label: "Total Profit", value: formatINR(totalProfit), color: "#16a34a", icon: "📈", sub: `${margin}% margin` },
+          { label: "Total Profit", value: "₹0.00", color: "#16a34a", icon: "📈", sub: "" },
           { label: "Discount Given", value: formatINR(totalDiscount), color: "#f59e0b", icon: "🏷️", sub: `${filtered.filter(b => b.discountPct > 0).length} discounted bills` },
           { label: "Avg Bill Value", value: filtered.length ? formatINR(totalSales / filtered.length) : "₹0.00", color: "#7c3aed", icon: "🧾", sub: "per bill" },
         ].map(k => (
@@ -1060,7 +1060,6 @@ function SalesView({ bills, onDelete, onDeleteAll, onEdit, products }) {
             </div>
             <div style={{ textAlign: "right" }}>
               {formatINR(b.total)}
-              <div style={{ fontSize: 11, color: "#16a34a" }}>+{formatINR(b.profit)} profit</div>
             </div>
             <button onClick={() => openEdit(b)} style={{ padding: "6px 10px", borderRadius: 8, border: "1.5px solid #2563eb", background: "#eff6ff", cursor: "pointer", fontSize: 11, color: "#2563eb", fontWeight: 700, display: "flex", gap: 4, alignItems: "center" }}>
               <Icon name="edit" size={12} /> Edit
@@ -1203,9 +1202,9 @@ function AnalyticsView({ bills }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
         {[
           { label: "Today Sales", value: formatINR(todaySales), color: "#2563eb", sub: `${todayBills.length} bills` },
-          { label: "Today Profit", value: formatINR(todayProfit), color: "#16a34a", sub: `${todaySales > 0 ? Math.round((todayProfit / todaySales) * 100) : 0}% margin` },
+          { label: "Today Profit", value: "₹0.00", color: "#16a34a", sub: `${todaySales > 0 ? Math.round((todayProfit / todaySales) * 100) : 0}% margin` },
           { label: "Total Sales", value: formatINR(totalSales), color: "#7c3aed", sub: `${bills.length} bills ever` },
-          { label: "Total Profit", value: formatINR(totalProfit), color: "#ea580c", sub: `${totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0}% margin` },
+          { label: "Total Profit", value: "₹0.00", color: "#ea580c", sub: `${totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0}% margin` },
         ].map(k => (
           <div key={k.label} style={{ background: "#fff", borderRadius: 16, padding: "20px", border: "1px solid #e5e0d8" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>{k.label}</div>
@@ -1265,7 +1264,6 @@ function AnalyticsView({ bills }) {
             {b.customer?.name && <div style={{ fontSize: 12, color: "#4a3f35" }}>👤 {b.customer.name}</div>}
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: "#2563eb" }}>{formatINR(b.total)}</div>
-              <div style={{ fontSize: 11, color: "#16a34a" }}>+{formatINR(b.profit)} profit</div>
             </div>
             <button onClick={() => printBill(b)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", fontSize: 11, color: "#4a3f35", display: "flex", gap: 4, alignItems: "center" }}>
               <Icon name="print" size={12} /> Print

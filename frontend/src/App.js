@@ -155,10 +155,10 @@ function printBill(bill) {
     .divider-dash { border-top: 1px dashed #000; margin: 4px 0; }
     .row { display: flex; justify-content: space-between; padding: 2px 0; color: #000; font-weight: 700; }
     .row-3 { display: flex; padding: 3px 0; color: #000; }
-    .col-name { flex: 2.2; font-size: 14px; font-weight: 900; color: #000; }
-    .col-qty { flex: 1; text-align: center; font-size: 14px; font-weight: 900; color: #000; }
-    .col-amt { flex: 1; text-align: right; font-size: 14px; font-weight: 900; color: #000; }
-    .header-row { font-size: 14px; font-weight: 900; color: #000; }
+    .col-name { flex: 2.2; font-size: 17px; font-weight: 900; color: #000; }
+.col-qty { flex: 1; text-align: center; font-size: 17px; font-weight: 900; color: #000; }
+.col-amt { flex: 1; text-align: right; font-size: 17px; font-weight: 900; color: #000; }
+.header-row { font-size: 17px; font-weight: 900; color: #000; }
     .total-row { display: flex; justify-content: space-between; font-size: 18px; font-weight: 900; padding: 4px 0; color: #000; }
     .payment-row { display: flex; justify-content: space-between; font-size: 14px; font-weight: 900; padding: 2px 0; color: #000; }
     .footer { text-align: center; font-size: 12px; margin-top: 4px; font-weight: 700; color: #000; }
@@ -203,13 +203,16 @@ function printBill(bill) {
 
   <div class="divider-dash"></div>
   <div class="footer">Thank you for visiting!</div>
-  <div class="footer">Manish Dairy - Quality Since Day One</div>
+
   <div class="footer">Jail Chungi, Meerut</div>
   <br/>
-  <button onclick="window.print()" style="width:100%;padding:8px;background:#000;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:14px;font-weight:900;">Print</button>
+  
   </body></html>`);
   w.document.close();
-  setTimeout(() => w.print(), 500);
+ setTimeout(() => {
+  w.print();
+  w.close();
+}, 500);
 }
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
@@ -531,22 +534,38 @@ function BillingView({ products, filtered, bills, category, setCategory, search,
     const existing = cart.find(i => i.id === product.id);
     setPopup({ ...product, tempQty: existing ? existing.qty : (product.unit === "piece" ? 1 : 0.5), tempAmt: "", selectedVariation: product.hasVariation ? (existing?.selectedVariation || null) : null });
   };
-  const confirmPopup = () => {
+const confirmPopup = () => {
     if (!popup) return;
-    const qty = parseFloat(popup.tempQty) || 0;
-    if (qty <= 0) { updateQty(popup.id, 0); setPopup(null); return; }
-    if (popup.hasVariation && !popup.selectedVariation) { alert("Pehle HALF ya FULL select karo!"); return; }
-    const itemToAdd = {
-      ...popup,
-      name: popup.hasVariation ? `${popup.name} (${popup.selectedVariation === "half" ? "Half" : "Full"})` : popup.name,
-      price: popup.hasVariation ? (popup.selectedVariation === "half" ? popup.halfPrice : popup.fullPrice) : popup.price,
-    };
-    const inCart = cart.find(i => i.id === popup.id && i.selectedVariation === popup.selectedVariation);
-    if (!inCart) {
-      setCart(prev => [...prev.filter(i => !(i.id === popup.id && i.selectedVariation === popup.selectedVariation)), { ...itemToAdd, qty, total: qty * itemToAdd.price, selectedVariation: popup.selectedVariation }]);
+    
+    let qty;
+    let overrideTotal = null;
+
+    if (popup.tempAmt !== "" && popup.tempAmt !== undefined && +popup.tempAmt > 0) {
+      if (popup.price > 0) {
+        qty = +((+popup.tempAmt / popup.price).toFixed(3));
+      } else {
+        // Price 0 hai toh qty=1 rakho aur total manually set karo
+        qty = 1;
+        overrideTotal = +popup.tempAmt;
+      }
     } else {
-      setCart(prev => prev.map(i => i.id === popup.id && i.selectedVariation === popup.selectedVariation ? { ...i, qty, total: qty * i.price } : i));
+      qty = parseFloat(popup.tempQty) || 0;
     }
+    
+    if (qty <= 0) { updateQty(popup.id, 0); setPopup(null); return; }
+    
+    const inCart = cart.find(i => i.id === popup.id);
+    if (!inCart) addToCart(popup);
+    
+    if (overrideTotal !== null) {
+      // Price 0 wale item ka total manually set karo
+      setCart(prev => prev.map(i => 
+        i.id === popup.id ? { ...i, qty: 1, total: overrideTotal, price: overrideTotal } : i
+      ));
+    } else {
+      updateQty(popup.id, qty);
+    }
+    
     setPopup(null);
   };
 
@@ -723,13 +742,21 @@ function BillingView({ products, filtered, bills, category, setCategory, search,
             </div>
             <div style={{ display: "flex", gap: 8, marginBottom: 18, alignItems: "center" }}>
               <input type="number" value={popup.tempAmt} onChange={e => {
-                const amt = e.target.value;
-                setPopup(p => ({ ...p, tempAmt: amt, tempQty: amt ? +((+amt / p.price).toFixed(3)) : p.tempQty }));
-              }} placeholder="Ya amount type karo (₹)" style={{ flex: 1, padding: "9px 12px", border: "1.5px solid #e5e0d8", borderRadius: 10, fontSize: 13, outline: "none" }} />
+  const amt = e.target.value;
+  setPopup(p => ({
+    ...p,
+    tempAmt: amt,
+    tempQty: (amt && p.price > 0) ? +((+amt / p.price).toFixed(3)) : p.tempQty
+  }));
+}} placeholder="Ya amount type karo (₹)" style={{ flex: 1, padding: "9px 12px", border: "1.5px solid #e5e0d8", borderRadius: 10, fontSize: 13, outline: "none" }} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, background: "#f8f5f0", borderRadius: 10, padding: "10px 14px" }}>
               <span style={{ fontSize: 13, color: "#8a7e6e", fontWeight: 600 }}>Amount</span>
-              <span style={{ fontSize: 20, fontWeight: 900, color: "#2563eb" }}>{formatINR((+popup.tempQty || 0) * popup.price)}</span>
+              <span style={{ fontSize: 20, fontWeight: 900, color: "#2563eb" }}>
+  {popup.tempAmt !== "" && popup.tempAmt !== undefined 
+    ? formatINR(+popup.tempAmt || 0)
+    : formatINR((+popup.tempQty || 0) * popup.price)}
+</span>
             </div>
             <button onClick={confirmPopup} style={{ width: "100%", padding: "13px", borderRadius: 12, background: "#1a1310", color: "#f59e0b", border: "none", fontWeight: 900, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
               <Icon name="check" size={18} /> Bill Mein Add Karo
@@ -918,7 +945,7 @@ function SalesView({ bills, onDelete, onDeleteAll, onEdit, products }) {
   const [selected, setSelected] = useState([]);
   const [editingBill, setEditingBill] = useState(null);
   const [editItems, setEditItems] = useState([]);
-  const [editDiscount, setEditDiscount] = useState(0);
+
   const [editSaving, setEditSaving] = useState(false);
   const [payFilter, setPayFilter] = useState("ALL");
   const todayStr = today();
@@ -926,7 +953,7 @@ function SalesView({ bills, onDelete, onDeleteAll, onEdit, products }) {
   const openEdit = (bill) => {
     setEditingBill(bill);
     setEditItems(bill.items.map(i => ({ ...i })));
-    setEditDiscount(bill.discountPct || 0);
+    
   };
 
   const updateEditQty = (itemId, qty) => {
@@ -951,7 +978,7 @@ function SalesView({ bills, onDelete, onDeleteAll, onEdit, products }) {
   const saveEdit = async () => {
     if (!editItems.length) { alert("Bill mein kam se kam 1 item hona chahiye!"); return; }
     setEditSaving(true);
-    const ok = await onEdit(editingBill.id, editItems, editDiscount);
+    const ok = await onEdit(editingBill.id, editItems, 0);
     if (ok) setEditingBill(null);
     setEditSaving(false);
   };
@@ -1117,25 +1144,17 @@ function SalesView({ bills, onDelete, onDeleteAll, onEdit, products }) {
                 </button>
               ))}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff8ee", border: "1.5px dashed #f59e0b", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#92400e" }}>🏷️ Discount %</span>
-              <input type="number" min="0" max="100" value={editDiscount} onChange={e => setEditDiscount(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} style={{ width: 70, padding: "6px", border: "1.5px solid #f59e0b", borderRadius: 8, fontSize: 14, fontWeight: 700, outline: "none", textAlign: "center", marginLeft: "auto" }} />
-            </div>
+            
             {(() => {
               const sub = editItems.reduce((s, i) => s + i.qty * i.price, 0);
-              const dAmt = sub * editDiscount / 100;
-              const tot = sub - dAmt;
+             const tot = sub;
               const diff = tot - editingBill.total;
               return (
                 <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 12, padding: "12px 16px", marginBottom: 20 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8a7e6e", marginBottom: 4 }}>
                     <span>Subtotal</span><span>{formatINR(sub)}</span>
                   </div>
-                  {editDiscount > 0 && (
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#16a34a", fontWeight: 700, marginBottom: 4 }}>
-                      <span>Discount ({editDiscount}%)</span><span>− {formatINR(dAmt)}</span>
-                    </div>
-                  )}
+                 
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 900, color: "#1a1310", borderTop: "1px solid #bae6fd", paddingTop: 8, marginTop: 4 }}>
                     <span>New Total</span><span style={{ color: "#2563eb" }}>{formatINR(tot)}</span>
                   </div>

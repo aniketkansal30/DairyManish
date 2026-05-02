@@ -542,12 +542,12 @@ const confirmPopup = () => {
 
     if (popup.tempAmt !== "" && popup.tempAmt !== undefined && +popup.tempAmt > 0) {
       if (popup.price > 0) {
-        qty = +((+popup.tempAmt / popup.price).toFixed(3));
-      } else {
-        // Price 0 hai toh qty=1 rakho aur total manually set karo
-        qty = 1;
-        overrideTotal = +popup.tempAmt;
-      }
+  qty = +((+popup.tempAmt / popup.price).toFixed(3));
+} else {
+  // Price 0 hai toh tempQty use karo, aur tempAmt total banega
+  qty = parseFloat(popup.tempQty) || 1;
+  overrideTotal = +popup.tempAmt * qty;
+}
     } else {
       qty = parseFloat(popup.tempQty) || 0;
     }

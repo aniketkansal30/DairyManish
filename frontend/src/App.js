@@ -560,7 +560,7 @@ const confirmPopup = () => {
     if (overrideTotal !== null) {
       // Price 0 wale item ka total manually set karo
       setCart(prev => prev.map(i => 
-        i.id === popup.id ? { ...i, qty: 1, total: overrideTotal, price: overrideTotal } : i
+     i.id === popup.id ? { ...i, qty: qty, total: overrideTotal, price: overrideTotal / qty } : i
       ));
     } else {
       updateQty(popup.id, qty);

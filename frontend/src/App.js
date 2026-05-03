@@ -38,7 +38,7 @@ const CAT_COLORS = { Sweets: "#ec4899", Snacks: "#f59e0b", Tandoor: "#ef4444" };
 
 // ─── UTILITY FUNCTIONS ────────────────────────────────────────────────────────
 function formatINR(n) {
-  return "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return "₹" + Math.round(Number(n)).toLocaleString("en-IN");
 }
 function formatDate(d) {
   return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -187,22 +187,22 @@ function printBill(bill) {
     <div class="row-3">
       <span class="col-name">${i.name}</span>
       <span class="col-qty">${formatQty(i.qty, i.unit)}</span>
-      <span class="col-amt">₹${i.total.toFixed(2)}</span>
+    <span class="col-amt">₹${Math.round(i.total)}</span>
     </div>
   `).join("")}
 
   <div class="divider-dash"></div>
   ${bill.discountPct > 0 ? `
-    <div class="row"><span>Subtotal</span><span>₹${bill.subtotal.toFixed(2)}</span></div>
-    <div class="row bold"><span>Discount (${bill.discountPct}%)</span><span>-₹${bill.discountAmt.toFixed(2)}</span></div>
+   <div class="row"><span>Subtotal</span><span>₹${Math.round(bill.subtotal)}</span></div>
+    <div class="row bold"><span>Discount (${bill.discountPct}%)</span><span>-₹${Math.round(bill.discountAmt)}</span></div>
   ` : ""}
   <div class="divider-solid"></div>
-  <div class="total-row"><span>TOTAL</span><span>₹${bill.total.toFixed(2)}</span></div>
+  <div class="total-row"><span>TOTAL</span><span>₹${Math.round(bill.total)}</span></div>
   <div class="divider-solid"></div>
   <div class="payment-row"><span>Payment:</span><span>${bill.paymentMode || "CASH"}</span></div>
 
   <div class="divider-dash"></div>
-  <div class="footer">Thank you for visiting!</div>
+  <div class="footer">Thank you!! Please Visit Again!!</div>
 
   
   <br/>
@@ -308,15 +308,15 @@ export default function App() {
   const checkoutBill = async (paymentMode = "CASH") => {
     if (!cart.length) return;
     const bill = {
-      id: "MD" + Date.now() + Math.random().toString(36).slice(2, 6).toUpperCase(),
+     id: "MD" + String(Date.now()).slice(-4),
       date: new Date().toISOString(),
       items: cart,
-      subtotal: cartSubtotal,
+     subtotal: Math.round(cartSubtotal),
       discountPct: discount,
-      discountAmt,
-      total: cartTotal,
-      cost: cartCost,
-      profit: cartTotal - cartCost,
+     discountAmt: Math.round(discountAmt),
+    total: Math.round(cartTotal),
+      cost: Math.round(cartCost),
+     profit: Math.round(cartTotal) - Math.round(cartCost),
       customer: customerForm.name || customerForm.phone ? { ...customerForm } : null,
       paymentMode,
     };
@@ -531,7 +531,10 @@ function BillingView({ products, filtered, bills, category, setCategory, search,
     });
   }, [filtered, popularIds]);
   const openPopup = (product) => {
-    const existing = cart.find(i => i.id === product.id);
+   const cartId = popup?.selectedVariation 
+  ? `${product.id}_${product.selectedVariation}` 
+  : product.id;
+const existing = cart.find(i => i.id === cartId);
     setPopup({ ...product, tempQty: existing ? existing.qty : (product.unit === "piece" ? 1 : 0.5), tempAmt: "", selectedVariation: product.hasVariation ? (existing?.selectedVariation || null) : null });
   };
 const confirmPopup = () => {
@@ -554,17 +557,22 @@ const confirmPopup = () => {
     
     if (qty <= 0) { updateQty(popup.id, 0); setPopup(null); return; }
     
-    const inCart = cart.find(i => i.id === popup.id);
-    if (!inCart) addToCart(popup);
-    
-    if (overrideTotal !== null) {
-      // Price 0 wale item ka total manually set karo
-      setCart(prev => prev.map(i => 
-     i.id === popup.id ? { ...i, qty: qty, total: overrideTotal, price: overrideTotal / qty } : i
-      ));
-    } else {
-      updateQty(popup.id, qty);
-    }
+    // Variation ke saath unique cartId banao
+const cartId = popup.selectedVariation 
+  ? `${popup.id}_${popup.selectedVariation}` 
+  : popup.id;
+
+const cartItem = { ...popup, cartId, id: cartId };
+const inCart = cart.find(i => i.id === cartId);
+if (!inCart) addToCart(cartItem);
+
+if (overrideTotal !== null) {
+  setCart(prev => prev.map(i => 
+    i.id === cartId ? { ...i, qty: qty, total: overrideTotal, price: overrideTotal / qty } : i
+  ));
+} else {
+  updateQty(cartId, qty);
+}
     
     setPopup(null);
   };
@@ -941,7 +949,8 @@ function ProductsView({ products, onSave, onDelete, dbCats, setDbCats }) {
 
 // ─── SALES VIEW ───────────────────────────────────────────────────────────────
 function SalesView({ bills, onDelete, onDeleteAll, onEdit, products }) {
-  const [filter, setFilter] = useState("today");
+const [filter, setFilter] = useState("today");
+const [customDate, setCustomDate] = useState("");
   const [selected, setSelected] = useState([]);
   const [editingBill, setEditingBill] = useState(null);
   const [editItems, setEditItems] = useState([]);
@@ -982,9 +991,12 @@ function SalesView({ bills, onDelete, onDeleteAll, onEdit, products }) {
     if (ok) setEditingBill(null);
     setEditSaving(false);
   };
+const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   const filtered = bills.filter(b => {
     if (filter === "today" && b.date?.slice(0, 10) !== todayStr) return false;
+    if (filter === "yesterday" && b.date?.slice(0, 10) !== yesterdayStr) return false;
     if (filter === "month" && b.date?.slice(0, 7) !== monthStr) return false;
+    if (filter === "custom" && b.date?.slice(0, 10) !== customDate) return false;
     if (payFilter !== "ALL" && (b.paymentMode || "CASH") !== payFilter) return false;
     return true;
   });
@@ -993,7 +1005,7 @@ function SalesView({ bills, onDelete, onDeleteAll, onEdit, products }) {
   const totalProfit = filtered.reduce((s, b) => s + b.profit, 0);
   const totalDiscount = filtered.reduce((s, b) => s + (b.discountAmt || 0), 0);
   const margin = totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0;
-  const labels = { today: "Today", month: "This Month", all: "All Time" };
+ const labels = { today: "Today", yesterday: "Yesterday", month: "This Month", all: "All Time", custom: customDate || "Custom" };
 
   const toggleSelect = (id) => {
     setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -1019,9 +1031,15 @@ function SalesView({ bills, onDelete, onDeleteAll, onEdit, products }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div style={{ fontSize: 20, fontWeight: 900, color: "#1a1310" }}>💰 Sales Overview</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {["today", "month", "all"].map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid", borderColor: filter === f ? "#f59e0b" : "#e5e0d8", background: filter === f ? "#f59e0b" : "#fff", color: filter === f ? "#1a1310" : "#8a7e6e" }}>{labels[f]}</button>
-          ))}
+          {["today", "yesterday", "month", "all"].map(f => (
+  <button key={f} onClick={() => setFilter(f)} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid", borderColor: filter === f ? "#f59e0b" : "#e5e0d8", background: filter === f ? "#f59e0b" : "#fff", color: filter === f ? "#1a1310" : "#8a7e6e" }}>{labels[f]}</button>
+))}
+<input
+  type="date"
+  value={customDate}
+  onChange={e => { setCustomDate(e.target.value); setFilter("custom"); }}
+  style={{ padding: "8px 12px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: `1.5px solid ${filter === "custom" ? "#f59e0b" : "#e5e0d8"}`, background: filter === "custom" ? "#fff8ee" : "#fff", color: "#1a1310", outline: "none" }}
+/>
           <div style={{ width: 1, height: 24, background: "#e5e0d8" }} />
           {["ALL", "CASH", "UPI"].map(pm => (
             <button key={pm} onClick={() => setPayFilter(pm)} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid", borderColor: payFilter === pm ? "#2563eb" : "#e5e0d8", background: payFilter === pm ? "#2563eb" : "#fff", color: payFilter === pm ? "#fff" : "#8a7e6e" }}>

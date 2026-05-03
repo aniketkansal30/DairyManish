@@ -5,6 +5,36 @@
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+
+<style>
+  * { box-sizing: border-box; }
+  
+  /* 1920px+ screens */
+  @media (min-width: 1920px) {
+    html { font-size: 18px; zoom: 1.1; }
+  }
+  
+  /* 1400px - 1919px - normal laptop/desktop */
+  @media (max-width: 1919px) and (min-width: 1400px) {
+    html { font-size: 16px; zoom: 1; }
+  }
+  
+  /* 1200px - 1399px - small desktop */
+  @media (max-width: 1399px) and (min-width: 1200px) {
+    html { font-size: 14px; zoom: 0.95; }
+  }
+  
+  /* 1000px - 1199px - small laptop */
+  @media (max-width: 1199px) and (min-width: 1000px) {
+    html { font-size: 13px; zoom: 0.85; }
+  }
+  
+  /* Below 1000px */
+  @media (max-width: 999px) {
+    html { font-size: 12px; zoom: 0.75; }
+  }
+</style>
     <meta
       name="description"
       content="Web site created using create-react-app"

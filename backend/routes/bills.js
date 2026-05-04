@@ -27,7 +27,8 @@ router.get("/", async (req, res) => {
       filter["customer.phone"] = req.query.phone;
     }
 
-    const bills = await Bill.find(filter).sort({ date: -1 }).limit(500);
+   const limitVal = (req.query.date || req.query.month || req.query.phone) ? 0 : 500;
+const bills = await Bill.find(filter).sort({ date: -1 }).limit(limitVal);
 
     res.json(bills); // ✅ BAS YEHI
   } catch (err) {
@@ -196,6 +197,10 @@ router.get("/analytics", async (req, res) => {
 // DELETE /api/bills/all — saari bills delete karo
 router.delete("/all", async (req, res) => {
   try {
+    const { confirmCode } = req.body;
+    if (confirmCode !== process.env.DELETE_ALL_CODE) {
+      return res.status(403).json({ error: "❌ Wrong confirm code!" });
+    }
     await Bill.deleteMany({});
     res.json({ success: true });
   } catch (err) {

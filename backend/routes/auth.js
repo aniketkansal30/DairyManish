@@ -32,5 +32,26 @@ router.post("/register", async (req, res) => {
     res.status(400).json({ error: e.message });
   }
 });
+// CHANGE PASSWORD
+router.post("/change-password", async (req, res) => {
+  try {
+    const { username, oldPassword, newPassword } = req.body;
+    
+    // User dhundho
+    const user = await User.findOne({ username });
+    if (!user) return res.status(400).json({ error: "User nahi mila!" });
 
+    // Old password verify karo
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) return res.status(400).json({ error: "❌ Purana password galat hai!" });
+
+    // Naya password hash karke save karo
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await User.updateOne({ username }, { password: hashed });
+
+    res.json({ success: true, message: "✅ Password change ho gaya!" });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 module.exports = router;

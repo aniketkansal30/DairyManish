@@ -1002,14 +1002,31 @@ function ProductsView({ products, onSave, onDelete, dbCats, setDbCats }) {
 }
 
 // ─── SALES VIEW ───────────────────────────────────────────────────────────────
-function SalesView({ bills, onDelete, onDeleteAll, onEdit, products }) {
+function SalesView({ bills: initialBills, onDelete, onDeleteAll, onEdit, products }) {
 const [filter, setFilter] = useState("today");
 const [customDate, setCustomDate] = useState("");
+const [bills, setBills] = useState(initialBills);
+useEffect(() => {
+    async function fetchBills() {
+      let path = "/bills";
+      if (filter === "today") path = `/bills?date=${today()}`;
+      else if (filter === "yesterday") path = `/bills?date=${new Date(Date.now() - 86400000).toISOString().slice(0, 10)}`;
+      else if (filter === "month") path = `/bills?month=${thisMonth()}`;
+      else if (filter === "custom" && customDate) path = `/bills?date=${customDate}`;
+      try {
+        const data = await apiCall(path);
+        setBills(data);
+      } catch (e) { console.error(e); }
+    }
+    fetchBills();
+  }, [filter, customDate]);
+
+  const [selected, setSelected] = useState([]);
   const [selected, setSelected] = useState([]);
   const [editingBill, setEditingBill] = useState(null);
   const [editItems, setEditItems] = useState([]);
 
-  const [editSaving, setEditSaving] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);  
   const [payFilter, setPayFilter] = useState("ALL");
   const todayStr = today();
   const monthStr = thisMonth();
@@ -1047,10 +1064,6 @@ const [customDate, setCustomDate] = useState("");
   };
 const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   const filtered = bills.filter(b => {
-    if (filter === "today" && b.date?.slice(0, 10) !== todayStr) return false;
-    if (filter === "yesterday" && b.date?.slice(0, 10) !== yesterdayStr) return false;
-    if (filter === "month" && b.date?.slice(0, 7) !== monthStr) return false;
-    if (filter === "custom" && b.date?.slice(0, 10) !== customDate) return false;
     if (payFilter !== "ALL" && (b.paymentMode || "CASH") !== payFilter) return false;
     return true;
   });

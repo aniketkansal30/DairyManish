@@ -1021,7 +1021,7 @@ useEffect(() => {
     fetchBills();
   }, [filter, customDate]);
 
-  const [selected, setSelected] = useState([]);
+  
   const [selected, setSelected] = useState([]);
   const [editingBill, setEditingBill] = useState(null);
   const [editItems, setEditItems] = useState([]);

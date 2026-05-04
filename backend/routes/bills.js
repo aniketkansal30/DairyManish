@@ -10,12 +10,10 @@ router.get("/", async (req, res) => {
     const filter = {};
 
     if (req.query.date) {
-      const start = new Date(req.query.date);
-      const end = new Date(req.query.date);
-      end.setDate(end.getDate() + 1);
-      filter.date = { $gte: start, $lt: end };
-    }
-
+  const start = new Date(req.query.date + "T00:00:00+05:30");
+  const end = new Date(req.query.date + "T23:59:59+05:30");
+  filter.date = { $gte: start, $lte: end };
+}
     if (req.query.month) {
       const [year, month] = req.query.month.split("-").map(Number);
       const start = new Date(year, month - 1, 1);

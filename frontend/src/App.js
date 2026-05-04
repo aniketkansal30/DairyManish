@@ -262,7 +262,7 @@ export default function App() {
         setLoading(true);
         const [prods, bls, custs, cats] = await Promise.all([
           apiCall("/products"),
-          apiCall("/bills"),
+        apiCall("/bills?date=" + today()),
           apiCall("/customers"),
           apiCall("/categories"),
         ]);

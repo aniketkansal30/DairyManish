@@ -1006,6 +1006,7 @@ function SalesView({ bills: initialBills, onDelete, onDeleteAll, onEdit, product
 const [filter, setFilter] = useState("today");
 const [customDate, setCustomDate] = useState("");
 const [bills, setBills] = useState(initialBills);
+const [loading, setLoading] = useState(false);
 useEffect(() => {
     async function fetchBills() {
       let path = "/bills";
@@ -1013,10 +1014,12 @@ useEffect(() => {
       else if (filter === "yesterday") path = `/bills?date=${new Date(Date.now() - 86400000).toISOString().slice(0, 10)}`;
       else if (filter === "month") path = `/bills?month=${thisMonth()}`;
       else if (filter === "custom" && customDate) path = `/bills?date=${customDate}`;
-      try {
-        const data = await apiCall(path);
-        setBills(data);
-      } catch (e) { console.error(e); }
+     setLoading(true);
+    try {
+      const data = await apiCall(path);
+      setBills(data);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
     }
     fetchBills();
   }, [filter, customDate]);
@@ -1158,6 +1161,11 @@ const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
       </div>
       <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", overflow: "hidden" }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e0d8", fontSize: 14, fontWeight: 800, color: "#1a1310" }}>🧾 Bills — {labels[filter]}</div>
+        {loading && (
+  <div style={{textAlign:"center", padding:"40px 0", fontSize:15, color:"#8a7e6e"}}>
+    ⏳ Data load ho raha hai...
+  </div>
+)}
         {filtered.length === 0 && <div style={{ textAlign: "center", color: "#c9b9a8", padding: "40px 0", fontSize: 14 }}>Koi bill nahi {labels[filter].toLowerCase()} mein</div>}
         {filtered.map((b, i) => (
           <div key={b.id} style={{ display: "flex", alignItems: "center", padding: "13px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: 16, flexWrap: "wrap", background: selected.includes(b.id) ? "#fff8ee" : "transparent" }}>

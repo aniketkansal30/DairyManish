@@ -3,6 +3,7 @@ import Icon from "./Icon";
 import { CAT_ICONS, CAT_COLORS } from "../utils/constants";
 import { formatINR, formatQty } from "../utils/helpers";
 
+
 const popBtn = {
   width: 44,
   height: 44,
@@ -45,19 +46,21 @@ export default function BillingView({
   const [popup, setPopup] = useState(null);
   const [paymentMode, setPaymentMode] = useState("CASH");
   const [heldBills, setHeldBills] = useState([]);
+  const [holdCounter, setHoldCounter] = useState(1);
 
   const holdBill = () => {
-    if (!cart.length) return;
-    const name = customerForm.name || `Bill #${heldBills.length + 1}`;
-    setHeldBills((prev) => [
-      ...prev,
-      { name, cart, customerForm, discount, paymentMode },
-    ]);
-    setCart([]);
-    setCustomerForm({ name: "", phone: "" });
-    setDiscount(0);
-    setPaymentMode("CASH");
-  };
+  if (!cart.length) return;
+  const name = customerForm.name || `Bill #${holdCounter}`;
+  setHoldCounter((prev) => prev + 1);
+  setHeldBills((prev) => [
+    ...prev,
+    { name, cart, customerForm, discount, paymentMode },
+  ]);
+  setCart([]);
+  setCustomerForm({ name: "", phone: "" });
+  setDiscount(0);
+  setPaymentMode("CASH");
+};
 
   const resumeBill = (index) => {
     const held = heldBills[index];
@@ -102,8 +105,8 @@ export default function BillingView({
       tempQty: existing
         ? existing.qty
         : product.unit === "piece"
-        ? 1
-        : 0.5,
+          ? 1
+          : 0.5,
       tempAmt: "",
       selectedVariation: product.hasVariation
         ? existing?.selectedVariation || null
@@ -171,7 +174,7 @@ export default function BillingView({
             display: "flex",
             flexDirection: "column",
             gap: 3,
-            width: 72,
+            width: 90,
             flexShrink: 0,
             maxHeight: "calc(100vh - 160px)",
             overflowY: "auto",
@@ -372,7 +375,7 @@ export default function BillingView({
             >
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {item.name}
+                  {item.name}{item.selectedVariation ? ` (${item.selectedVariation === "half" ? "Half" : "Full"})` : ""}
                 </div>
                 <div style={{ fontSize: 11, color: "#8a7e6e" }}>
                   {formatQty(item.qty, item.unit)} × ₹{item.price}
@@ -440,7 +443,7 @@ export default function BillingView({
                 ⏸️ Hold
               </button>
               <button
-                onClick={() => checkoutBill(paymentMode)}
+                onClick={() => { checkoutBill(paymentMode); setPaymentMode("CASH"); }}
                 style={{ flex: 1, height: 42, borderRadius: 10, background: "#1a1310", color: "#f59e0b", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
               >
                 <Icon name="print" size={15} /> Print & Save
@@ -589,9 +592,7 @@ export default function BillingView({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, background: "#f8f5f0", borderRadius: 10, padding: "10px 14px" }}>
               <span style={{ fontSize: 13, color: "#8a7e6e", fontWeight: 600 }}>Amount</span>
               <span style={{ fontSize: 20, fontWeight: 900, color: "#2563eb" }}>
-                {popup.tempAmt !== "" && popup.tempAmt !== undefined
-                  ? formatINR(+popup.tempAmt || 0)
-                  : formatINR((+popup.tempQty || 0) * popup.price)}
+                {formatINR((+popup.tempQty || 0) * (popup.price > 0 ? popup.price : +popup.tempAmt || 0))}
               </span>
             </div>
 

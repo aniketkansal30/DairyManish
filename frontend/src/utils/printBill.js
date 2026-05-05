@@ -32,7 +32,7 @@ export function printBill(bill) {
   <div class="divider-solid"></div>
 
   <div class="row"><span>Date:</span><span>${formatDate(bill.date)} ${formatTime(bill.date)}</span></div>
-  <div class="row"><span>Token No:</span><span>${bill.id}</span></div>
+  <div class="row"><span>Token No:</span><span>${bill.id.slice(-3)}</span></div>
   ${bill.customer?.name ? `<div class="row"><span>Customer:</span><span>${bill.customer.name}</span></div>` : ""}
   ${bill.customer?.phone ? `<div class="row"><span>Phone:</span><span>${bill.customer.phone}</span></div>` : ""}
 

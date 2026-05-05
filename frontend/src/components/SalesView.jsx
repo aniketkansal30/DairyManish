@@ -6,7 +6,7 @@ import { exportToExcel } from "../utils/exportExcel";
 import { printBill } from "../utils/printBill";
 
 // ─── SALES VIEW ───────────────────────────────────────────────────────────────
-export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, onEdit, products }) {
+export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, onEdit, products, setView }) {
   const [filter, setFilter] = useState("today");
   const [customDate, setCustomDate] = useState("");
   const [bills, setBills] = useState(initialBills);
@@ -44,11 +44,12 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
   };
 
   const updateEditQty = (itemId, qty) => {
-    if (qty <= 0) {
+    const numQty = parseFloat(qty) || 0;
+    if (numQty <= 0) {
       setEditItems((prev) => prev.filter((i) => i.id !== itemId));
     } else {
       setEditItems((prev) =>
-        prev.map((i) => (i.id === itemId ? { ...i, qty, total: qty * i.price } : i))
+        prev.map((i) => (i.id === itemId ? { ...i, qty: numQty, total: +(numQty * i.price).toFixed(2) } : i))
       );
     }
   };
@@ -66,7 +67,7 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
     if (!editItems.length) { alert("Bill mein kam se kam 1 item hona chahiye!"); return; }
     setEditSaving(true);
     const ok = await onEdit(editingBill.id, editItems, 0);
-    if (ok) setEditingBill(null);
+    if (ok) { setEditingBill(null); setView("billing"); }
     setEditSaving(false);
   };
 
@@ -202,7 +203,7 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
           >
             <input type="checkbox" checked={selected.includes(b.id)} onChange={() => toggleSelect(b.id)} style={{ width: 16, height: 16, cursor: "pointer", flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 140 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>{b.id}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>MD{b.id.slice(-3)}</div>
               <div style={{ fontSize: 11, color: "#8a7e6e" }}>{formatDate(b.date)} · {formatTime(b.date)}</div>
             </div>
             {b.customer?.name && <div style={{ fontSize: 12, color: "#4a3f35" }}>👤 {b.customer.name}</div>}
@@ -232,7 +233,7 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
           <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: "#fff", borderRadius: 20, padding: 28, width: 520, maxHeight: "85vh", overflowY: "auto", zIndex: 301, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 900, color: "#1a1310" }}>✏️ Edit Bill — {editingBill.id}</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: "#1a1310" }}>✏️ Edit Bill — {editingBill.id.slice(-3)}</div>
                 <div style={{ fontSize: 12, color: "#8a7e6e" }}>{formatDate(editingBill.date)} · {formatTime(editingBill.date)}</div>
               </div>
               <button onClick={() => setEditingBill(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#8a7e6e" }}>

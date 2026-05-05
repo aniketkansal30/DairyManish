@@ -54,7 +54,7 @@ export default function App() {
 
   // ─── BILLING STATE ──────────────────────────────────────────────────────────
   const [cart, setCart] = useState([]);
-  const [category, setCategory] = useState("Sweets");
+  const [category, setCategory] = useState("Milk");
   const [search, setSearch] = useState("");
   const [customerForm, setCustomerForm] = useState({ name: "", phone: "" });
   const [discount, setDiscount] = useState(0);
@@ -66,7 +66,7 @@ export default function App() {
         setLoading(true);
         const [prods, bls, custs, cats] = await Promise.all([
           apiCall("/products"),
-          apiCall("/bills?date=" + today()),
+          apiCall("/bills?month=" + today().slice(0, 7)),
           apiCall("/customers"),
           apiCall("/categories"),
         ]);
@@ -137,7 +137,7 @@ export default function App() {
   const checkoutBill = async (paymentMode = "CASH") => {
     if (!cart.length) return;
     const bill = {
-      id: "MD" + String(Date.now()).slice(-4),
+      id: "MD" + Date.now(),
       date: new Date().toISOString(),
       items: cart,
       subtotal: Math.round(cartSubtotal),
@@ -161,6 +161,7 @@ export default function App() {
       setCart([]);
       setCustomerForm({ name: "", phone: "" });
       setDiscount(0);
+      setCategory("Milk");
     } catch (e) {
       alert("Bill save karne mein error: " + e.message);
     }
@@ -381,12 +382,13 @@ export default function App() {
         )}
         {view === "sales" && (
           <SalesView
-            bills={bills}
-            onDelete={handleDeleteBill}
-            onDeleteAll={handleDeleteAllBills}
-            onEdit={handleEditBill}
-            products={products}
-          />
+  bills={bills}
+  onDelete={handleDeleteBill}
+  onDeleteAll={handleDeleteAllBills}
+  onEdit={handleEditBill}
+  products={products}
+  setView={setView}
+/>
         )}
         {view === "analytics" && <AnalyticsView bills={bills} />}
         {view === "customers" && (

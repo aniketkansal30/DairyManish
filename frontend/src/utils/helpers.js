@@ -20,6 +20,7 @@ export function thisMonth() {
   return new Date().toISOString().slice(0, 7);
 }
 
+
 export function formatQty(qty, unit) {
   if (unit === "kg") return qty < 1 ? `${Math.round(qty * 1000)} g` : `${+qty.toFixed(3)} kg`;
   if (unit === "litre") return qty < 1 ? `${Math.round(qty * 1000)} ml` : `${+qty.toFixed(3)} L`;

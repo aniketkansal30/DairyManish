@@ -1,5 +1,6 @@
 import Login from "./Login";
 import { useState, useEffect, useMemo } from "react";
+import LicenseGate from "./LicenseGate";
 
 // Utils
 import { apiCall } from "./utils/api";
@@ -300,6 +301,7 @@ export default function App() {
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
+    <LicenseGate> 
     <div
       style={{
         display: "flex",
@@ -397,5 +399,6 @@ export default function App() {
         )}
       </div>
     </div>
+    </LicenseGate> 
   );
 }

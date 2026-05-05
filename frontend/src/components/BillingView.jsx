@@ -49,18 +49,18 @@ export default function BillingView({
   const [holdCounter, setHoldCounter] = useState(1);
 
   const holdBill = () => {
-  if (!cart.length) return;
-  const name = customerForm.name || `Bill #${holdCounter}`;
-  setHoldCounter((prev) => prev + 1);
-  setHeldBills((prev) => [
-    ...prev,
-    { name, cart, customerForm, discount, paymentMode },
-  ]);
-  setCart([]);
-  setCustomerForm({ name: "", phone: "" });
-  setDiscount(0);
-  setPaymentMode("CASH");
-};
+    if (!cart.length) return;
+    const name = customerForm.name || `Bill #${holdCounter}`;
+    setHoldCounter((prev) => prev + 1);
+    setHeldBills((prev) => [
+      ...prev,
+      { name, cart, customerForm, discount, paymentMode },
+    ]);
+    setCart([]);
+    setCustomerForm({ name: "", phone: "" });
+    setDiscount(0);
+    setPaymentMode("CASH");
+  };
 
   const resumeBill = (index) => {
     const held = heldBills[index];
@@ -165,7 +165,7 @@ export default function BillingView({
   ];
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20, alignItems: "start" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 480px", gap: 20, alignItems: "start" }}>
       {/* Left: Category sidebar + product grid */}
       <div style={{ display: "flex", gap: 16 }}>
         {/* Category sidebar */}
@@ -279,7 +279,7 @@ export default function BillingView({
         </div>
       </div>
 
-      {/* Right: Cart panel */}
+      {/* Right: Cart panel — half screen */}
       <div
         style={{
           background: "#fff",
@@ -288,18 +288,22 @@ export default function BillingView({
           overflow: "hidden",
           position: "sticky",
           top: 80,
+          display: "flex",
+          flexDirection: "column",
+          maxHeight: "calc(100vh - 100px)",
         }}
       >
-        <div style={{ padding: "14px 16px", background: "#1a1310", display: "flex", alignItems: "center", gap: 8 }}>
-          <Icon name="cart" size={15} />
-          <span style={{ fontSize: 14, fontWeight: 800, color: "#f59e0b" }}>Current Bill</span>
+        {/* Header */}
+        <div style={{ padding: "16px 20px", background: "#1a1310", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <Icon name="cart" size={16} />
+          <span style={{ fontSize: 16, fontWeight: 800, color: "#f59e0b" }}>Current Bill</span>
           {cart.length > 0 && (
-            <span style={{ marginLeft: "auto", background: "#f59e0b", color: "#1a1310", borderRadius: 999, fontSize: 11, fontWeight: 900, padding: "2px 8px" }}>
+            <span style={{ marginLeft: "auto", background: "#f59e0b", color: "#1a1310", borderRadius: 999, fontSize: 12, fontWeight: 900, padding: "2px 10px" }}>
               {cart.length}
             </span>
           )}
           {heldBills.length > 0 && (
-            <span style={{ marginLeft: 4, background: "#ef4444", color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 900, padding: "2px 8px", cursor: "pointer" }}>
+            <span style={{ marginLeft: 4, background: "#ef4444", color: "#fff", borderRadius: 999, fontSize: 12, fontWeight: 900, padding: "2px 10px", cursor: "pointer" }}>
               ⏸️ {heldBills.length}
             </span>
           )}
@@ -307,8 +311,8 @@ export default function BillingView({
 
         {/* Held bills */}
         {heldBills.length > 0 && (
-          <div style={{ padding: "8px 12px", background: "#fff8ee", borderBottom: "1px solid #f0ebe4" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#92400e", marginBottom: 6 }}>
+          <div style={{ padding: "10px 16px", background: "#fff8ee", borderBottom: "1px solid #f0ebe4", flexShrink: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>
               ⏸️ HELD BILLS ({heldBills.length})
             </div>
             {heldBills.map((b, i) => (
@@ -319,7 +323,7 @@ export default function BillingView({
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  padding: "5px 8px",
+                  padding: "7px 10px",
                   background: "#fff",
                   borderRadius: 8,
                   marginBottom: 4,
@@ -327,33 +331,33 @@ export default function BillingView({
                   border: "1px solid #f59e0b",
                 }}
               >
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#1a1310" }}>{b.name}</span>
-                <span style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700 }}>{b.cart.length} items →</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>{b.name}</span>
+                <span style={{ fontSize: 12, color: "#f59e0b", fontWeight: 700 }}>{b.cart.length} items →</span>
               </div>
             ))}
           </div>
         )}
 
         {/* Customer form */}
-        <div style={{ padding: "10px 12px", borderBottom: "1px solid #f0ebe4", display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid #f0ebe4", display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
           <input
             value={customerForm.name}
             onChange={(e) => setCustomerForm((p) => ({ ...p, name: e.target.value }))}
             placeholder="👤 Customer Name"
-            style={{ width: "100%", padding: "7px 10px", border: "1px solid #e5e0d8", borderRadius: 8, fontSize: 12, outline: "none", boxSizing: "border-box" }}
+            style={{ width: "100%", padding: "10px 14px", border: "1px solid #e5e0d8", borderRadius: 10, fontSize: 14, outline: "none", boxSizing: "border-box" }}
           />
           <input
             value={customerForm.phone}
             onChange={(e) => setCustomerForm((p) => ({ ...p, phone: e.target.value }))}
             placeholder="📱 Phone"
-            style={{ width: "100%", padding: "7px 10px", border: "1px solid #e5e0d8", borderRadius: 8, fontSize: 12, outline: "none", boxSizing: "border-box" }}
+            style={{ width: "100%", padding: "10px 14px", border: "1px solid #e5e0d8", borderRadius: 10, fontSize: 14, outline: "none", boxSizing: "border-box" }}
           />
         </div>
 
-        {/* Cart items */}
-        <div style={{ maxHeight: 260, overflowY: "auto" }}>
+        {/* Cart items — scrollable */}
+        <div style={{ flex: 1, overflowY: "auto" }}>
           {cart.length === 0 && (
-            <div style={{ textAlign: "center", color: "#c9b9a8", padding: "28px 0", fontSize: 13 }}>
+            <div style={{ textAlign: "center", color: "#c9b9a8", padding: "48px 0", fontSize: 15 }}>
               Product select karo
             </div>
           )}
@@ -365,7 +369,7 @@ export default function BillingView({
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                padding: "10px 14px",
+                padding: "13px 18px",
                 borderTop: i > 0 ? "1px solid #f0ebe4" : "none",
                 cursor: "pointer",
                 transition: "background 0.1s",
@@ -374,20 +378,20 @@ export default function BillingView({
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#1a1310", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {item.name}{item.selectedVariation ? ` (${item.selectedVariation === "half" ? "Half" : "Full"})` : ""}
                 </div>
-                <div style={{ fontSize: 11, color: "#8a7e6e" }}>
+                <div style={{ fontSize: 12, color: "#8a7e6e", marginTop: 2 }}>
                   {formatQty(item.qty, item.unit)} × ₹{item.price}
                 </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>{formatINR(item.total)}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                <span style={{ fontSize: 15, fontWeight: 800, color: "#2563eb" }}>{formatINR(item.total)}</span>
                 <button
                   onClick={(e) => { e.stopPropagation(); updateQty(item.id, 0); }}
                   style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 2, display: "flex", alignItems: "center" }}
                 >
-                  <Icon name="trash" size={13} />
+                  <Icon name="trash" size={14} />
                 </button>
               </div>
             </div>
@@ -396,22 +400,23 @@ export default function BillingView({
 
         {/* Checkout panel */}
         {cart.length > 0 && (
-          <div style={{ padding: "12px 14px", borderTop: "2px dashed #e5e0d8" }}>
-            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <div style={{ padding: "16px 18px", borderTop: "2px dashed #e5e0d8", flexShrink: 0 }}>
+            {/* Payment mode */}
+            <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
               {["CASH", "UPI"].map((mode) => (
                 <button
                   key={mode}
                   onClick={() => setPaymentMode(mode)}
                   style={{
                     flex: 1,
-                    padding: "9px",
-                    borderRadius: 10,
+                    padding: "12px",
+                    borderRadius: 12,
                     border: "2px solid",
                     borderColor: paymentMode === mode ? "#f59e0b" : "#e5e0d8",
                     background: paymentMode === mode ? "#1a1310" : "#fff",
                     color: paymentMode === mode ? "#f59e0b" : "#8a7e6e",
                     fontWeight: 800,
-                    fontSize: 13,
+                    fontSize: 15,
                     cursor: "pointer",
                   }}
                 >
@@ -420,33 +425,35 @@ export default function BillingView({
               ))}
             </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8a7e6e", marginBottom: 3 }}>
+            {/* Totals */}
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#8a7e6e", marginBottom: 4 }}>
               <span>Subtotal</span>
               <span>{formatINR(cartSubtotal)}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 19, fontWeight: 900, color: "#1a1310", marginBottom: 12, borderTop: "1.5px solid #e5e0d8", paddingTop: 8, marginTop: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 24, fontWeight: 900, color: "#1a1310", marginBottom: 14, borderTop: "1.5px solid #e5e0d8", paddingTop: 10, marginTop: 6 }}>
               <span>Total</span>
               <span style={{ color: "#2563eb" }}>{formatINR(cartTotal)}</span>
             </div>
 
-            <div style={{ display: "flex", gap: 8 }}>
+            {/* Action buttons */}
+            <div style={{ display: "flex", gap: 10 }}>
               <button
                 onClick={() => setCart([])}
-                style={{ width: 40, height: 42, borderRadius: 10, border: "1.5px solid #fca5a5", background: "#fff", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                style={{ width: 48, height: 50, borderRadius: 12, border: "1.5px solid #fca5a5", background: "#fff", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
               >
-                <Icon name="trash" size={15} />
+                <Icon name="trash" size={16} />
               </button>
               <button
                 onClick={holdBill}
-                style={{ height: 42, padding: "0 14px", borderRadius: 10, background: "#f59e0b", color: "#1a1310", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                style={{ height: 50, padding: "0 18px", borderRadius: 12, background: "#f59e0b", color: "#1a1310", border: "none", fontWeight: 800, fontSize: 14, cursor: "pointer" }}
               >
                 ⏸️ Hold
               </button>
               <button
                 onClick={() => { checkoutBill(paymentMode); setPaymentMode("CASH"); }}
-                style={{ flex: 1, height: 42, borderRadius: 10, background: "#1a1310", color: "#f59e0b", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                style={{ flex: 1, height: 50, borderRadius: 12, background: "#1a1310", color: "#f59e0b", border: "none", fontWeight: 800, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
               >
-                <Icon name="print" size={15} /> Print & Save
+                <Icon name="print" size={16} /> Print & Save
               </button>
             </div>
 
@@ -458,9 +465,9 @@ export default function BillingView({
                     .join("\n")}\n\nSubtotal: ${formatINR(cartSubtotal)}${discount > 0 ? `\nDiscount (${discount}%): -${formatINR(discountAmt)}` : ""}\n*TOTAL: ${formatINR(cartTotal)}*\n\nThank you! 🥛`;
                   window.open(`https://wa.me/91${customerForm.phone}?text=${encodeURIComponent(msg)}`);
                 }}
-                style={{ marginTop: 8, width: "100%", padding: "9px", borderRadius: 10, background: "#25d366", color: "#fff", border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                style={{ marginTop: 10, width: "100%", padding: "12px", borderRadius: 12, background: "#25d366", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
               >
-                <Icon name="whatsapp" size={14} /> Send on WhatsApp
+                <Icon name="whatsapp" size={15} /> Send on WhatsApp
               </button>
             )}
           </div>

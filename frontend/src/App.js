@@ -58,6 +58,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [customerForm, setCustomerForm] = useState({ name: "", phone: "" });
   const [discount, setDiscount] = useState(0);
+  const [editingBillId, setEditingBillId] = useState(null);
 
   // ─── LOAD DATA ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -134,9 +135,23 @@ export default function App() {
   const cartTotal = cartSubtotal - discountAmt;
 
   // ─── CHECKOUT ───────────────────────────────────────────────────────────────
-  const checkoutBill = async (paymentMode = "CASH") => {
-    if (!cart.length) return;
-    const bill = {
+ const checkoutBill = async (paymentMode = "CASH") => {
+  if (!cart.length) return;
+
+  // Editing mode
+  if (editingBillId) {
+    const ok = await handleEditBill(editingBillId, cart, discount);
+    if (ok) {
+      setCart([]);
+      setCustomerForm({ name: "", phone: "" });
+      setDiscount(0);
+      setEditingBillId(null);
+      setView("sales");
+    }
+    return;
+  }
+
+  const bill = {
       id: "MD" + Date.now(),
       date: new Date().toISOString(),
       items: cart,
@@ -251,6 +266,14 @@ export default function App() {
       return false;
     }
   };
+  // ─── Load bill into cart for editing ──────────────────────────────────────
+const loadBillIntoCart = (bill) => {
+  setCart(bill.items.map(i => ({ ...i })));
+  setCustomerForm({ name: bill.customer?.name || "", phone: bill.customer?.phone || "" });
+  setDiscount(bill.discountPct || 0);
+  setEditingBillId(bill.id);
+  setView("billing");
+};
 
   // ─── LOADING / ERROR STATES ─────────────────────────────────────────────────
   if (!token) return <Login onLogin={(t) => setToken(t)} />;
@@ -369,6 +392,8 @@ export default function App() {
             setCustomerForm={setCustomerForm}
             checkoutBill={checkoutBill}
             dbCats={dbCats}
+    editingBillId={editingBillId}
+    onCancelEdit={() => { setEditingBillId(null); setCart([]); setView("sales"); }}
           />
         )}
         {view === "products" && (
@@ -381,15 +406,16 @@ export default function App() {
           />
         )}
         {view === "sales" && (
-          <SalesView
-  bills={bills}
-  onDelete={handleDeleteBill}
-  onDeleteAll={handleDeleteAllBills}
-  onEdit={handleEditBill}
-  products={products}
-  setView={setView}
-/>
-        )}
+  <SalesView
+    bills={bills}
+    onDelete={handleDeleteBill}
+    onDeleteAll={handleDeleteAllBills}
+    onEdit={handleEditBill}
+    products={products}
+    setView={setView}
+    onLoadEdit={loadBillIntoCart}
+  />
+)}
         {view === "analytics" && <AnalyticsView bills={bills} />}
         {view === "customers" && (
           <CustomersView

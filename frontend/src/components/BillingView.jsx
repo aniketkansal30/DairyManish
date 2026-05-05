@@ -21,27 +21,11 @@ const popBtn = {
 
 // ─── BILLING VIEW ─────────────────────────────────────────────────────────────
 export default function BillingView({
-  products,
-  filtered,
-  bills,
-  category,
-  setCategory,
-  search,
-  setSearch,
-  cart,
-  setCart,
-  addToCart,
-  updateQty,
-  setQtyPreset,
-  cartTotal,
-  cartSubtotal,
-  discountAmt,
-  discount,
-  setDiscount,
-  customerForm,
-  setCustomerForm,
-  checkoutBill,
-  dbCats,
+  products, filtered, bills, category, setCategory, search, setSearch,
+  cart, setCart, addToCart, updateQty, setQtyPreset,
+  cartTotal, cartSubtotal, discountAmt, discount, setDiscount,
+  customerForm, setCustomerForm, checkoutBill, dbCats,
+  editingBillId, onCancelEdit,
 }) {
   const [popup, setPopup] = useState(null);
   const [paymentMode, setPaymentMode] = useState("CASH");
@@ -302,6 +286,13 @@ export default function BillingView({
               {cart.length}
             </span>
           )}
+           {/* ─── Editing Banner ─── */}
+        {editingBillId && (
+          <div style={{ padding: "8px 12px", background: "#fef3c7", borderBottom: "1px solid #f59e0b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: "#92400e" }}>✏️ EDITING: {editingBillId}</span>
+            <button onClick={onCancelEdit} style={{ fontSize: 10, color: "#ef4444", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>✕ Cancel</button>
+          </div>
+        )}
           {heldBills.length > 0 && (
             <span style={{ marginLeft: 4, background: "#ef4444", color: "#fff", borderRadius: 999, fontSize: 12, fontWeight: 900, padding: "2px 10px", cursor: "pointer" }}>
               ⏸️ {heldBills.length}
@@ -453,7 +444,7 @@ export default function BillingView({
                 onClick={() => { checkoutBill(paymentMode); setPaymentMode("CASH"); }}
                 style={{ flex: 1, height: 50, borderRadius: 12, background: "#1a1310", color: "#f59e0b", border: "none", fontWeight: 800, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
               >
-                <Icon name="print" size={16} /> Print & Save
+                <Icon name="print" size={15} /> {editingBillId ? "💾 Update Bill" : "Print & Save"}
               </button>
             </div>
 

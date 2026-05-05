@@ -1,247 +1,49 @@
 import Login from "./Login";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
 import { useState, useEffect, useMemo } from "react";
 
-// ─── API BASE URL ─────────────────────────────────────────────────────────────
-const API = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
+// Utils
+import { apiCall } from "./utils/api";
+import { today } from "./utils/helpers";
+import { printBill } from "./utils/printBill";
 
-// ─── API HELPER ───────────────────────────────────────────────────────────────
-async function apiCall(path, method = "GET", body = null) {
-  const token = localStorage.getItem("dairy_token");
-  const opts = {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-    },
-  };
+// Components
+import Navbar from "./components/Navbar";
+import BillingView from "./components/BillingView";
+import ProductsView from "./components/ProductsView";
+import SalesView from "./components/SalesView";
+import AnalyticsView from "./components/AnalyticsView";
+import CustomersView from "./components/CustomersView";
 
-  if (body) opts.body = JSON.stringify(body);
-
-  const res = await fetch(`${API}${path}`, opts);
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Server error" }));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
-
-  return res.json();
-}
-// Baad mein
-const DEFAULT_CATS = ["Sweets", "Snacks", "Tandoor"];
-let CUSTOM_CATS = JSON.parse(localStorage.getItem("dairy_cats") || "[]");
-const getAllCats = () => [...DEFAULT_CATS, ...CUSTOM_CATS];
-
-const CAT_ICONS = { Sweets: "🍬", Snacks: "🥨", Tandoor: "🔥", All: "🏪", Dahi: "🥛", "Dry Fruit Thal": "🎁", "Extra Items": "➕", Amul: "🧈", Cookies: "🍪", GHEWAR: "🍮", GUNJIA: "🥟", Kachori: "🫓", Paneer: "🧀", Milk: "🥛", Namkeen: "🧂", Other: "📦", "Gravy Items": "🍛" };
-const CAT_COLORS = { Sweets: "#ec4899", Snacks: "#f59e0b", Tandoor: "#ef4444" };
-
-// ─── UTILITY FUNCTIONS ────────────────────────────────────────────────────────
-function formatINR(n) {
-  return "₹" + Math.round(Number(n)).toLocaleString("en-IN");
-}
-function formatDate(d) {
-  return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-}
-function formatTime(d) {
-  return new Date(d).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
-}
-function today() { return new Date().toISOString().slice(0, 10); }
-function thisMonth() { return new Date().toISOString().slice(0, 7); }
-function formatQty(qty, unit) {
-  if (unit === "kg") return qty < 1 ? `${Math.round(qty * 1000)} g` : `${+qty.toFixed(3)} kg`;
-  if (unit === "litre") return qty < 1 ? `${Math.round(qty * 1000)} ml` : `${+qty.toFixed(3)} L`;
-  return `${qty} ${unit}`;
-}
-function exportToExcel(bills, filterLabel) {
-  const rows = [];
-  bills.forEach(bill => {
-    bill.items?.forEach(item => {
-      rows.push({
-        "Bill ID": bill.id,
-        "Date": formatDate(bill.date),
-        "Time": formatTime(bill.date),
-        "Customer": bill.customer?.name || "-",
-        "Phone": bill.customer?.phone || "-",
-        "Payment": bill.paymentMode || "CASH",
-        "Item": item.name,
-        "Category": item.category || "-",
-        "Unit": item.unit,
-        "Qty": item.qty,
-        "Price (₹)": item.price,
-        "Item Total (₹)": item.total,
-        "Bill Subtotal (₹)": bill.subtotal,
-        "Discount %": bill.discountPct || 0,
-        "Discount Amt (₹)": bill.discountAmt || 0,
-        "Bill Total (₹)": bill.total,
-        "Profit (₹)": bill.profit,
-      });
-    });
-  });
-
-  const summary = [{
-    "": "SUMMARY",
-    "Total Bills": bills.length,
-    "Total Sales (₹)": bills.reduce((s, b) => s + b.total, 0).toFixed(2),
-    "Total Profit (₹)": bills.reduce((s, b) => s + b.profit, 0).toFixed(2),
-    "Cash Sales (₹)": bills.filter(b => (b.paymentMode || "CASH") === "CASH").reduce((s, b) => s + b.total, 0).toFixed(2),
-    "UPI Sales (₹)": bills.filter(b => b.paymentMode === "UPI").reduce((s, b) => s + b.total, 0).toFixed(2),
-  }];
-
-  const wb = XLSX.utils.book_new();
-  const ws1 = XLSX.utils.json_to_sheet(rows);
-  const ws2 = XLSX.utils.json_to_sheet(summary);
-
-  // Column widths
-  ws1["!cols"] = [
-    { wch: 18 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 8 },
-    { wch: 16 }, { wch: 10 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 12 },
-    { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 10 }
-  ];
-
-  XLSX.utils.book_append_sheet(wb, ws1, "Bills Detail");
-  XLSX.utils.book_append_sheet(wb, ws2, "Summary");
-
-  const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf], { type: "application/octet-stream" }), `ManishDairy_${filterLabel}_${today()}.xlsx`);
-}
-
-
-// ─── ICONS ────────────────────────────────────────────────────────────────────
-const Icon = ({ name, size = 18 }) => {
-  const icons = {
-    home: "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10",
-    cart: "M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z M3 6h18 M16 10a4 4 0 01-8 0",
-    products: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
-    analytics: "M18 20V10 M12 20V4 M6 20v-6",
-    customers: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75",
-    plus: "M12 5v14 M5 12h14",
-    minus: "M5 12h14",
-    trash: "M3 6h18 M8 6V4h8v2 M19 6l-1 14H6L5 6",
-    edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
-    search: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0",
-    print: "M6 9V2h12v7 M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2 M6 14h12v8H6z",
-    whatsapp: "M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z",
-    close: "M18 6L6 18 M6 6l12 12",
-    check: "M20 6L9 17l-5-5",
-    repeat: "M17 1l4 4-4 4 M3 11V9a4 4 0 014-4h14 M7 23l-4-4 4-4 M21 13v2a4 4 0 01-4 4H3",
-    phone: "M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.1 1.18 2 2 0 012.11 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.91a16 16 0 006.72 6.72l1.06-1.35a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z",
-    calendar: "M3 4h18v18H3z M16 2v4 M8 2v4 M3 10h18",
-    profit: "M12 2v20 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6",
-    tag: "M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z M7 7h.01",
-    save: "M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z M17 21v-8H7v8 M7 3v5h8",
-    menu: "M3 12h18 M3 6h18 M3 18h18",
-  };
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      {(icons[name] || "").split(" M").map((d, i) => <path key={i} d={(i === 0 ? "" : "M") + d} />)}
-    </svg>
-  );
-};
-
-// ─── BILL PRINT ───────────────────────────────────────────────────────────────
-function printBill(bill) {
-  const w = window.open("", "_blank", "width=302,height=600");
-  w.document.write(`<!DOCTYPE html><html><head><style>
-    @page { margin: 0; size: 80mm auto; }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Courier New', monospace; font-size: 13px; width: 80mm; padding: 4mm; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .center { text-align: center; }
-    .bold { font-weight: 900; }
-    .big { font-size: 22px; font-weight: 900; letter-spacing: 1px; }
-    .shop-sub { font-size: 13px; font-weight: 900; }
-    .shop-addr { font-size: 12px; font-weight: 700; }
-    .divider-solid { border-top: 2px solid #000; margin: 4px 0; }
-    .divider-dash { border-top: 1px dashed #000; margin: 4px 0; }
-    .row { display: flex; justify-content: space-between; padding: 2px 0; color: #000; font-weight: 700; }
-    .row-3 { display: flex; padding: 3px 0; color: #000; }
-    .col-name { flex: 2.2; font-size: 17px; font-weight: 900; color: #000; }
-.col-qty { flex: 1; text-align: center; font-size: 17px; font-weight: 900; color: #000; }
-.col-amt { flex: 1; text-align: right; font-size: 17px; font-weight: 900; color: #000; }
-.header-row { font-size: 17px; font-weight: 900; color: #000; }
-    .total-row { display: flex; justify-content: space-between; font-size: 18px; font-weight: 900; padding: 4px 0; color: #000; }
-    .payment-row { display: flex; justify-content: space-between; font-size: 14px; font-weight: 900; padding: 2px 0; color: #000; }
-    .footer { text-align: center; font-size: 12px; margin-top: 4px; font-weight: 700; color: #000; }
-    @media print { button { display: none !important; } * { color: #000 !important; } }
-  </style></head><body>
-
-  <div class="center bold big">MANISH DAIRY</div>
-  <div class="center shop-sub">SWEETS AND NAMKEEN</div>
-  <div class="center shop-addr">24/1, Basant Vihar, Jail Chungi, Meerut</div>
-  <div class="divider-solid"></div>
-
-  <div class="row"><span>Date:</span><span>${formatDate(bill.date)} ${formatTime(bill.date)}</span></div>
-  <div class="row"><span>Token No:</span><span>${bill.id}</span></div>
-  ${bill.customer?.name ? `<div class="row"><span>Customer:</span><span>${bill.customer.name}</span></div>` : ""}
-  ${bill.customer?.phone ? `<div class="row"><span>Phone:</span><span>${bill.customer.phone}</span></div>` : ""}
-
-  <div class="divider-solid"></div>
-  <div class="row-3 header-row bold">
-    <span class="col-name">Item</span>
-    <span class="col-qty">Qty</span>
-    <span class="col-amt">Amt</span>
-  </div>
-  <div class="divider-dash"></div>
-
-  ${bill.items.map(i => `
-    <div class="row-3">
-      <span class="col-name">${i.name}</span>
-      <span class="col-qty">${formatQty(i.qty, i.unit)}</span>
-    <span class="col-amt">₹${Math.round(i.total)}</span>
-    </div>
-  `).join("")}
-
-  <div class="divider-dash"></div>
-  ${bill.discountPct > 0 ? `
-   <div class="row"><span>Subtotal</span><span>₹${Math.round(bill.subtotal)}</span></div>
-    <div class="row bold"><span>Discount (${bill.discountPct}%)</span><span>-₹${Math.round(bill.discountAmt)}</span></div>
-  ` : ""}
-  <div class="divider-solid"></div>
-  <div class="total-row"><span>TOTAL</span><span>₹${Math.round(bill.total)}</span></div>
-  <div class="divider-solid"></div>
-  <div class="payment-row"><span>Payment:</span><span>${bill.paymentMode || "CASH"}</span></div>
-
-  <div class="divider-dash"></div>
-  <div class="footer">Thank you!! Please Visit Again!!</div>
-
-  
-  <br/>
-  
-  </body></html>`);
-  w.document.close();
- setTimeout(() => {
-  w.print();
-  w.close();
-}, 500);
-}
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("dairy_token"));
   const [view, setView] = useState("billing");
+
+  // Admin shortcut: Ctrl+Shift+D → apply global discount
   useEffect(() => {
     const handleKey = async (e) => {
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "d") {
         const pass = prompt("Enter Admin Password");
-
         if (pass === "aniket123") {
-          let discount = prompt("Enter Global Discount %");
-
-
-          const confirmApply = window.confirm("Are you sure? This will apply discount permanently.");
-
+          const discount = prompt("Enter Global Discount %");
+          const confirmApply = window.confirm(
+            "Are you sure? This will apply discount permanently."
+          );
           if (confirmApply) {
-            await apiCall("/bills/apply-discount", "POST", { discount: Number(discount) });
+            await apiCall("/bills/apply-discount", "POST", {
+              discount: Number(discount),
+            });
             alert("Discount applied to existing data");
             window.location.reload();
           }
         }
       }
     };
-
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, []);
 
+  // ─── DATA STATE ─────────────────────────────────────────────────────────────
   const [products, setProducts] = useState([]);
   const [bills, setBills] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -249,20 +51,21 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // ─── BILLING STATE ──────────────────────────────────────────────────────────
   const [cart, setCart] = useState([]);
   const [category, setCategory] = useState("Sweets");
   const [search, setSearch] = useState("");
-  // search change hone par selected clear karo
   const [customerForm, setCustomerForm] = useState({ name: "", phone: "" });
   const [discount, setDiscount] = useState(0);
 
+  // ─── LOAD DATA ──────────────────────────────────────────────────────────────
   useEffect(() => {
     async function loadAll() {
       try {
         setLoading(true);
         const [prods, bls, custs, cats] = await Promise.all([
           apiCall("/products"),
-        apiCall("/bills?date=" + today()),
+          apiCall("/bills?date=" + today()),
           apiCall("/customers"),
           apiCall("/categories"),
         ]);
@@ -271,7 +74,9 @@ export default function App() {
         setCustomers(custs);
         setDbCats(cats);
       } catch (e) {
-        setError("Server se connect nahi ho paya. Backend chal raha hai? " + e.message);
+        setError(
+          "Server se connect nahi ho paya. Backend chal raha hai? " + e.message
+        );
       } finally {
         setLoading(false);
       }
@@ -279,50 +84,74 @@ export default function App() {
     loadAll();
   }, []);
 
-  const filtered = useMemo(() => products.filter(p =>
-  (category === "All" || p.category === category) &&
-  p.name.toLowerCase().includes(search.toLowerCase())
-).sort((a, b) => a.name.localeCompare(b.name)), [products, category, search]);
+  // ─── FILTERED PRODUCTS ──────────────────────────────────────────────────────
+  const filtered = useMemo(
+    () =>
+      products
+        .filter(
+          (p) =>
+            (category === "All" || p.category === category) &&
+            p.name.toLowerCase().includes(search.toLowerCase())
+        )
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [products, category, search]
+  );
 
+  // ─── CART HELPERS ───────────────────────────────────────────────────────────
   const addToCart = (product) => {
-    setCart(prev => {
-      const ex = prev.find(i => i.id === product.id);
-      if (ex) return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1, total: (i.qty + 1) * i.price } : i);
+    setCart((prev) => {
+      const ex = prev.find((i) => i.id === product.id);
+      if (ex)
+        return prev.map((i) =>
+          i.id === product.id
+            ? { ...i, qty: i.qty + 1, total: (i.qty + 1) * i.price }
+            : i
+        );
       return [...prev, { ...product, qty: 1, total: product.price }];
     });
   };
+
   const updateQty = (id, qty) => {
-    if (qty <= 0) { setCart(prev => prev.filter(i => i.id !== id)); return; }
-    setCart(prev => prev.map(i => i.id === id ? { ...i, qty, total: qty * i.price } : i));
+    if (qty <= 0) {
+      setCart((prev) => prev.filter((i) => i.id !== id));
+      return;
+    }
+    setCart((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, qty, total: qty * i.price } : i))
+    );
   };
+
   const setQtyPreset = (id, preset, unit) => {
     const qty = unit === "kg" || unit === "litre" ? preset : Math.round(preset);
     updateQty(id, qty);
   };
 
+  // ─── CART TOTALS ────────────────────────────────────────────────────────────
   const cartSubtotal = cart.reduce((s, i) => s + i.total, 0);
   const cartCost = cart.reduce((s, i) => s + i.qty * i.cost, 0);
   const discountAmt = cartSubtotal * (discount / 100);
   const cartTotal = cartSubtotal - discountAmt;
 
+  // ─── CHECKOUT ───────────────────────────────────────────────────────────────
   const checkoutBill = async (paymentMode = "CASH") => {
     if (!cart.length) return;
     const bill = {
-     id: "MD" + String(Date.now()).slice(-4),
+      id: "MD" + String(Date.now()).slice(-4),
       date: new Date().toISOString(),
       items: cart,
-     subtotal: Math.round(cartSubtotal),
+      subtotal: Math.round(cartSubtotal),
       discountPct: discount,
-     discountAmt: Math.round(discountAmt),
-    total: Math.round(cartTotal),
+      discountAmt: Math.round(discountAmt),
+      total: Math.round(cartTotal),
       cost: Math.round(cartCost),
-     profit: Math.round(cartTotal) - Math.round(cartCost),
-      customer: customerForm.name || customerForm.phone ? { ...customerForm } : null,
+      profit: Math.round(cartTotal) - Math.round(cartCost),
+      customer:
+        customerForm.name || customerForm.phone ? { ...customerForm } : null,
       paymentMode,
     };
     try {
       const saved = await apiCall("/bills", "POST", bill);
-      setBills(prev => [saved, ...prev]);
+      setBills((prev) => [saved, ...prev]);
       if (customerForm.phone) {
         const updatedCustomers = await apiCall("/customers");
         setCustomers(updatedCustomers);
@@ -336,20 +165,31 @@ export default function App() {
     }
   };
 
+  // ─── PRODUCT CRUD ───────────────────────────────────────────────────────────
   const handleSaveProduct = async (formData, editingId) => {
     try {
       if (editingId) {
         const updated = await apiCall(`/products/${editingId}`, "PUT", {
-          ...formData, price: +formData.price, cost: +formData.cost,
-          hasVariation: formData.hasVariation, halfPrice: +formData.halfPrice || 0, fullPrice: +formData.fullPrice || 0,
+          ...formData,
+          price: +formData.price,
+          cost: +formData.cost,
+          hasVariation: formData.hasVariation,
+          halfPrice: +formData.halfPrice || 0,
+          fullPrice: +formData.fullPrice || 0,
         });
-        setProducts(prev => prev.map(p => p.id === editingId ? updated : p));
+        setProducts((prev) =>
+          prev.map((p) => (p.id === editingId ? updated : p))
+        );
       } else {
         const created = await apiCall("/products", "POST", {
-          ...formData, price: +formData.price, cost: +formData.cost,
-          hasVariation: formData.hasVariation, halfPrice: +formData.halfPrice || 0, fullPrice: +formData.fullPrice || 0,
+          ...formData,
+          price: +formData.price,
+          cost: +formData.cost,
+          hasVariation: formData.hasVariation,
+          halfPrice: +formData.halfPrice || 0,
+          fullPrice: +formData.fullPrice || 0,
         });
-        setProducts(prev => [...prev, created]);
+        setProducts((prev) => [...prev, created]);
       }
       return true;
     } catch (e) {
@@ -361,33 +201,40 @@ export default function App() {
   const handleDeleteProduct = async (id) => {
     try {
       await apiCall(`/products/${id}`, "DELETE");
-      setProducts(prev => prev.filter(p => p.id !== id));
+      setProducts((prev) => prev.filter((p) => p.id !== id));
     } catch (e) {
       alert("Product delete karne mein error: " + e.message);
     }
   };
-  // ─── BILL DELETE FUNCTIONS ───────────────────────────────────────────────────
+
+  // ─── BILL CRUD ──────────────────────────────────────────────────────────────
   const handleDeleteBill = async (id) => {
-  const pass = prompt("Admin Password Enter Karo:");
-  if (pass !== "aniket123") { alert("❌ Wrong Password!"); return; }
-  try {
-    await apiCall(`/bills/${id}`, "DELETE");
-    setBills(prev => prev.filter(b => b.id !== id));
-  } catch (e) {
-    alert("Bill delete karne mein error: " + e.message);
-  }
-};
+    const pass = prompt("Admin Password Enter Karo:");
+    if (pass !== "aniket123") {
+      alert("❌ Wrong Password!");
+      return;
+    }
+    try {
+      await apiCall(`/bills/${id}`, "DELETE");
+      setBills((prev) => prev.filter((b) => b.id !== id));
+    } catch (e) {
+      alert("Bill delete karne mein error: " + e.message);
+    }
+  };
 
   const handleDeleteAllBills = async () => {
-  const pass = prompt("Admin Password Enter Karo:");
-  if (pass !== "aniket123") { alert("❌ Wrong Password!"); return; }
-  try {
-    await apiCall("/bills/all", "DELETE");
-    setBills([]);
-  } catch (e) {
-    alert("Saari bills delete karne mein error: " + e.message);
-  }
-};
+    const pass = prompt("Admin Password Enter Karo:");
+    if (pass !== "aniket123") {
+      alert("❌ Wrong Password!");
+      return;
+    }
+    try {
+      await apiCall("/bills/all", "DELETE");
+      setBills([]);
+    } catch (e) {
+      alert("Saari bills delete karne mein error: " + e.message);
+    }
+  };
 
   const handleEditBill = async (billId, updatedItems, updatedDiscountPct) => {
     try {
@@ -395,7 +242,7 @@ export default function App() {
         items: updatedItems,
         discountPct: updatedDiscountPct,
       });
-      setBills(prev => prev.map(b => b.id === billId ? updated : b));
+      setBills((prev) => prev.map((b) => (b.id === billId ? updated : b)));
       return true;
     } catch (e) {
       alert("Bill edit karne mein error: " + e.message);
@@ -403,1100 +250,152 @@ export default function App() {
     }
   };
 
+  // ─── LOADING / ERROR STATES ─────────────────────────────────────────────────
   if (!token) return <Login onLogin={(t) => setToken(t)} />;
-  if (loading) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#f8f5f0", flexDirection: "column", gap: 16 }}>
-      <div style={{ fontSize: 48 }}>🥛</div>
-      <div style={{ fontSize: 20, fontWeight: 900, color: "#1a1310" }}>MANISH DAIRY</div>
-      <div style={{ fontSize: 14, color: "#8a7e6e" }}>Data load ho raha hai...</div>
-    </div>
-  );
 
-  if (error) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#f8f5f0", flexDirection: "column", gap: 16, padding: 24, textAlign: "center" }}>
-      <div style={{ fontSize: 48 }}>❌</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: "#ef4444" }}>{error}</div>
-      <button onClick={() => window.location.reload()} style={{ padding: "10px 24px", background: "#1a1310", color: "#f59e0b", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer" }}>
-        Dobara Try Karo
-      </button>
-    </div>
-  );
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#f8f5f0", fontFamily: "'Segoe UI', sans-serif" }}>
-      {/* Footer */}
-      <div style={{
-        backgroundColor: "#1a1310",
-        color: "#f5f0eb",
-        textAlign: "center",
-        padding: "14px",
-        fontSize: "13px"
-      }}>
-        Developed by <strong style={{ color: "#f59e0b" }}>Aniket Kansal</strong> & <strong style={{ color: "#f59e0b" }}>Akshansh Mittal</strong>
-        &nbsp;|&nbsp; 📞 +91-8126700718 & +91-8766392706
+  if (loading)
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+          background: "#f8f5f0",
+          flexDirection: "column",
+          gap: 16,
+        }}
+      >
+        <div style={{ fontSize: 48 }}>🥛</div>
+        <div style={{ fontSize: 20, fontWeight: 900, color: "#1a1310" }}>MANISH DAIRY</div>
+        <div style={{ fontSize: 14, color: "#8a7e6e" }}>Data load ho raha hai...</div>
       </div>
-      <Navbar view={view} setView={setView} onLogout={() => {
-        localStorage.clear();
-        setToken(null);
-      }} />
-      <div style={{ padding: "24px", maxWidth: 1400, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
-        {view === "billing" && <BillingView products={products} filtered={filtered} bills={bills} category={category} setCategory={setCategory} search={search} setSearch={setSearch} cart={cart} setCart={setCart} addToCart={addToCart} updateQty={updateQty} setQtyPreset={setQtyPreset} cartTotal={cartTotal} cartSubtotal={cartSubtotal} discountAmt={discountAmt} discount={discount} setDiscount={setDiscount} customerForm={customerForm} setCustomerForm={setCustomerForm} checkoutBill={checkoutBill} dbCats={dbCats} />}
-        {view === "products" && <ProductsView products={products} onSave={handleSaveProduct} onDelete={handleDeleteProduct} dbCats={dbCats} setDbCats={setDbCats} />}
-        {view === "sales" && <SalesView bills={bills} onDelete={handleDeleteBill} onDeleteAll={handleDeleteAllBills} onEdit={handleEditBill} products={products} />}
-        {view === "analytics" && <AnalyticsView bills={bills} />}
-        {view === "customers" && <CustomersView customers={customers} bills={bills} setCart={setCart} setView={setView} />}
-      </div>
-    </div>
-  );
-}
+    );
 
-// ─── NAVBAR ───────────────────────────────────────────────────────────────────
-function Navbar({ view, setView, onLogout }) {
-  const [showChangePwd, setShowChangePwd] = useState(false);
-  const [pwdForm, setPwdForm] = useState({ username: "", oldPassword: "", newPassword: "", confirm: "" });
-  const [pwdMsg, setPwdMsg] = useState("");
-
-  const changePassword = async () => {
-    if (pwdForm.newPassword !== pwdForm.confirm) { setPwdMsg("❌ Passwords match nahi kar rahe!"); return; }
-    if (pwdForm.newPassword.length < 4) { setPwdMsg("❌ Password 4+ characters ka hona chahiye!"); return; }
-    try {
-      const res = await fetch(`${API}/auth/change-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: pwdForm.username, oldPassword: pwdForm.oldPassword, newPassword: pwdForm.newPassword }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setPwdMsg("✅ Password change ho gaya! Dobara login karo.");
-      setTimeout(() => { setShowChangePwd(false); setPwdMsg(""); onLogout(); }, 2000);
-    } catch (e) { setPwdMsg("❌ " + e.message); }
-  };
-
-  const nav = [
-    { id: "billing", label: "Billing", icon: "cart" },
-    { id: "products", label: "Products", icon: "products" },
-    { id: "sales", label: "Sales", icon: "profit" },
-    { id: "analytics", label: "Analytics", icon: "analytics" },
-    { id: "customers", label: "Customers", icon: "customers" },
-  ];
-  return (
-    <>
-    <div style={{ background: "#1a1310", position: "sticky", top: 0, zIndex: 99, display: "flex", alignItems: "center", padding: "0 24px", gap: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.18)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 16, padding: "14px 0" }}>
-        <span style={{ fontSize: 22 }}>🥛</span>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 900, color: "#f59e0b", letterSpacing: 1, lineHeight: 1 }}>MANISH</div>
-          <div style={{ fontSize: 9, color: "#8a7e6e", letterSpacing: 3, fontWeight: 700, lineHeight: 1 }}>DAIRY</div>
-        </div>
-      </div>
-      <div style={{ width: 1, height: 32, background: "#2d2420", marginRight: 8 }} />
-      <nav style={{ display: "flex", gap: 4, flex: 1 }}>
-        {nav.map(n => (
-          <button key={n.id} onClick={() => setView(n.id)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13, fontWeight: view === n.id ? 800 : 500, transition: "all 0.15s", background: view === n.id ? "#f59e0b" : "transparent", color: view === n.id ? "#1a1310" : "#c9b9a8" }}>
-            <Icon name={n.icon} size={15} />
-            {n.label}
-          </button>
-        ))}
-      </nav>
-      <div style={{ fontSize: 12, color: "#8a7e6e", flexShrink: 0 }}>
-        {new Date().toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
-      </div>
-      <button onClick={() => setShowChangePwd(true)} style={{ marginLeft: 8, padding: "8px 14px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-        🔑 Password
-      </button>
-      <button onClick={onLogout} style={{ marginLeft: 6, padding: "8px 16px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-        Logout
-      </button>
-    </div>
-
-    {showChangePwd && (
-      <>
-        <div onClick={() => setShowChangePwd(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 999 }} />
-        <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: "#fff", borderRadius: 20, padding: 28, width: 360, zIndex: 1000, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-          <div style={{ fontSize: 18, fontWeight: 900, color: "#1a1310", marginBottom: 20 }}>🔑 Password Change Karo</div>
-          {[["Username", "username", "text"], ["Purana Password", "oldPassword", "password"], ["Naya Password", "newPassword", "password"], ["Naya Confirm Karo", "confirm", "password"]].map(([label, key, type]) => (
-            <div key={key} style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
-              <input type={type} value={pwdForm[key]} onChange={e => setPwdForm(p => ({ ...p, [key]: e.target.value }))}
-                style={{ width: "100%", padding: "9px 12px", border: "1px solid #e5e0d8", borderRadius: 8, fontSize: 14, outline: "none", marginTop: 4, boxSizing: "border-box" }} />
-            </div>
-          ))}
-          {pwdMsg && (
-            <div style={{ padding: "8px 12px", borderRadius: 8, marginBottom: 12, fontSize: 13, fontWeight: 700, background: pwdMsg.includes("✅") ? "#f0fdf4" : "#fef2f2", color: pwdMsg.includes("✅") ? "#16a34a" : "#ef4444" }}>
-              {pwdMsg}
-            </div>
-          )}
-          <div style={{ display: "flex", gap: 10 }}>
-            <button onClick={() => { setShowChangePwd(false); setPwdMsg(""); }} style={{ flex: 1, padding: "11px", background: "#f8f5f0", color: "#4a3f35", border: "1px solid #e5e0d8", borderRadius: 10, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
-            <button onClick={changePassword} style={{ flex: 1, padding: "11px", background: "#1a1310", color: "#f59e0b", border: "none", borderRadius: 10, fontWeight: 800, cursor: "pointer" }}>Change Karo 🔐</button>
-          </div>
-        </div>
-      </>
-    )}
-    </>
-  );
-}
-
-// ─── BILLING VIEW ─────────────────────────────────────────────────────────────
-function BillingView({ products, filtered, bills, category, setCategory, search, setSearch, cart, setCart, addToCart, updateQty, setQtyPreset, cartTotal, cartSubtotal, discountAmt, discount, setDiscount, customerForm, setCustomerForm, checkoutBill, dbCats }) {
-  const [popup, setPopup] = useState(null);
-  const [paymentMode, setPaymentMode] = useState("CASH");
-  const [heldBills, setHeldBills] = useState([]);
-
-  const holdBill = () => {
-    if (!cart.length) return;
-    const name = customerForm.name || `Bill #${heldBills.length + 1}`;
-    setHeldBills(prev => [...prev, { name, cart, customerForm, discount, paymentMode }]);
-    setCart([]);
-    setCustomerForm({ name: "", phone: "" });
-    setDiscount(0);
-    setPaymentMode("CASH");
-  };
-
-  const resumeBill = (index) => {
-    const held = heldBills[index];
-    setCart(held.cart);
-    setCustomerForm(held.customerForm);
-    setDiscount(held.discount);
-    setPaymentMode(held.paymentMode);
-    setHeldBills(prev => prev.filter((_, i) => i !== index));
-  };
-
-  // ─── POPULAR ITEMS ─────────────────────────────────────────────────────────
-  const popularIds = useMemo(() => {
-    const countMap = {};
-    bills.forEach(b => b.items?.forEach(i => {
-      countMap[i.id] = (countMap[i.id] || 0) + 1;
-    }));
-    return Object.entries(countMap)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 5)
-      .map(([id]) => id);
-  }, [bills]);
-
-  const sortedFiltered = useMemo(() => {
-    return [...filtered].sort((a, b) => {
-      const aIdx = popularIds.indexOf(a.id);
-      const bIdx = popularIds.indexOf(b.id);
-      if (aIdx === -1 && bIdx === -1) return 0;
-      if (aIdx === -1) return 1;
-      if (bIdx === -1) return -1;
-      return aIdx - bIdx;
-    });
-  }, [filtered, popularIds]);
-  const openPopup = (product) => {
-   const cartId = popup?.selectedVariation 
-  ? `${product.id}_${product.selectedVariation}` 
-  : product.id;
-const existing = cart.find(i => i.id === cartId);
-    setPopup({ ...product, tempQty: existing ? existing.qty : (product.unit === "piece" ? 1 : 0.5), tempAmt: "", selectedVariation: product.hasVariation ? (existing?.selectedVariation || null) : null });
-  };
-const confirmPopup = () => {
-    if (!popup) return;
-    
-    let qty;
-    let overrideTotal = null;
-
-    if (popup.tempAmt !== "" && popup.tempAmt !== undefined && +popup.tempAmt > 0) {
-      if (popup.price > 0) {
-  qty = +((+popup.tempAmt / popup.price).toFixed(3));
-} else {
-  // Price 0 hai toh tempQty use karo, aur tempAmt total banega
-  qty = parseFloat(popup.tempQty) || 1;
-  overrideTotal = +popup.tempAmt * qty;
-}
-    } else {
-      qty = parseFloat(popup.tempQty) || 0;
-    }
-    
-    if (qty <= 0) { updateQty(popup.id, 0); setPopup(null); return; }
-    
-    // Variation ke saath unique cartId banao
-const cartId = popup.selectedVariation 
-  ? `${popup.id}_${popup.selectedVariation}` 
-  : popup.id;
-
-const cartItem = { ...popup, cartId, id: cartId };
-const inCart = cart.find(i => i.id === cartId);
-if (!inCart) addToCart(cartItem);
-
-if (overrideTotal !== null) {
-  setCart(prev => prev.map(i => 
-    i.id === cartId ? { ...i, qty: qty, total: overrideTotal, price: overrideTotal / qty } : i
-  ));
-} else {
-  updateQty(cartId, qty);
-}
-    
-    setPopup(null);
-  };
-
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20, alignItems: "start" }}>
-      <div style={{ display: "flex", gap: 16 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 3, width: 72, flexShrink: 0, maxHeight: "calc(100vh - 160px)", overflowY: "auto" }}>
-          {["Milk", "Dahi", "Paneer", "Namkeen", "Kachori", "Sweets", "Amul", "Snacks", "Tandoor", "Cookies", "Dry Fruit Thal", "Other", "Gravy Items"].map(c => (
-            <button key={c} onClick={() => setCategory(c)} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, padding: "6px 4px", borderRadius: 10, border: "2px solid", borderColor: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#e5e0d8", background: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#fff", color: category === c ? "#fff" : "#4a3f35", fontSize: 10, fontWeight: category === c ? 800 : 500, cursor: "pointer", transition: "all 0.15s", boxShadow: category === c ? `0 4px 12px ${(CAT_COLORS[c] || "#f59e0b")}44` : "none" }}>
-              <span style={{ fontSize: 16 }}>{CAT_ICONS[c] || "🏷️"}</span>
-              {c}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ position: "relative", marginBottom: 14 }}>
-            <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#8a7e6e" }}><Icon name="search" size={16} /></span>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..." style={{ width: "100%", padding: "10px 12px 10px 36px", borderRadius: 10, border: "1px solid #e5e0d8", background: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
-            {sortedFiltered.map(p => {
-              const inCart = cart.find(i => i.id === p.id);
-              return (
-                <button key={p.id} onClick={() => openPopup(p)} style={{ background: "#fff", border: `2px solid ${inCart ? CAT_COLORS[p.category] || "#f59e0b" : "#e5e0d8"}`, borderRadius: 14, padding: "14px 12px", textAlign: "left", cursor: "pointer", transition: "all 0.15s", position: "relative", boxShadow: inCart ? `0 0 0 3px ${CAT_COLORS[p.category]}22` : "none" }}>
-                  {popularIds.includes(p.id) && !inCart && (
-                    <div style={{ position: "absolute", top: 8, right: 8, background: "#f59e0b", color: "#1a1310", borderRadius: 999, fontSize: 9, fontWeight: 800, padding: "2px 6px" }}>⭐ TOP</div>
-                  )}
-                  {inCart && (
-                    <div style={{ position: "absolute", top: 8, right: 8, background: CAT_COLORS[p.category] || "#f59e0b", color: "#fff", borderRadius: 999, fontSize: 10, fontWeight: 800, padding: "2px 7px" }}>×{formatQty(inCart.qty, inCart.unit)}</div>
-                  )}
-                  <div style={{ fontSize: 22, marginBottom: 6 }}>{CAT_ICONS[p.category]}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310", marginBottom: 2, lineHeight: 1.3 }}>{p.name}</div>
-                  <div style={{ fontSize: 12, color: "#8a7e6e", marginBottom: 6 }}>{p.category}</div>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: CAT_COLORS[p.category] || "#f59e0b" }}>₹{p.price}<span style={{ fontSize: 10, fontWeight: 500, color: "#8a7e6e" }}>/{p.unit}</span></div>
-                </button>
-              );
-            })}
-          </div>
-          {filtered.length === 0 && <div style={{ textAlign: "center", color: "#8a7e6e", padding: "40px 0", fontSize: 15 }}>No products found</div>}
-        </div>
-      </div>
-
-      <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", overflow: "hidden", position: "sticky", top: 80 }}>
-        <div style={{ padding: "14px 16px", background: "#1a1310", display: "flex", alignItems: "center", gap: 8 }}>
-          <Icon name="cart" size={15} />
-          <span style={{ fontSize: 14, fontWeight: 800, color: "#f59e0b" }}>Current Bill</span>
-          {cart.length > 0 && <span style={{ marginLeft: "auto", background: "#f59e0b", color: "#1a1310", borderRadius: 999, fontSize: 11, fontWeight: 900, padding: "2px 8px" }}>{cart.length}</span>}
-          {heldBills.length > 0 && (
-            <span onClick={() => { }} style={{ marginLeft: 4, background: "#ef4444", color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 900, padding: "2px 8px", cursor: "pointer" }}>⏸️ {heldBills.length}</span>
-          )}
-        </div>
-        {heldBills.length > 0 && (
-          <div style={{ padding: "8px 12px", background: "#fff8ee", borderBottom: "1px solid #f0ebe4" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#92400e", marginBottom: 6 }}>⏸️ HELD BILLS ({heldBills.length})</div>
-            {heldBills.map((b, i) => (
-              <div key={i} onClick={() => resumeBill(i)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 8px", background: "#fff", borderRadius: 8, marginBottom: 4, cursor: "pointer", border: "1px solid #f59e0b" }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#1a1310" }}>{b.name}</span>
-                <span style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700 }}>{b.cart.length} items →</span>
-              </div>
-            ))}
-          </div>
-        )}
-        <div style={{ padding: "10px 12px", borderBottom: "1px solid #f0ebe4", display: "flex", flexDirection: "column", gap: 6 }}>
-          <input value={customerForm.name} onChange={e => setCustomerForm(p => ({ ...p, name: e.target.value }))} placeholder="👤 Customer Name" style={{ width: "100%", padding: "7px 10px", border: "1px solid #e5e0d8", borderRadius: 8, fontSize: 12, outline: "none", boxSizing: "border-box" }} />
-          <input value={customerForm.phone} onChange={e => setCustomerForm(p => ({ ...p, phone: e.target.value }))} placeholder="📱 Phone" style={{ width: "100%", padding: "7px 10px", border: "1px solid #e5e0d8", borderRadius: 8, fontSize: 12, outline: "none", boxSizing: "border-box" }} />
-        </div>
-        <div style={{ maxHeight: 260, overflowY: "auto" }}>
-          {cart.length === 0 && <div style={{ textAlign: "center", color: "#c9b9a8", padding: "28px 0", fontSize: 13 }}>Product select karo</div>}
-          {cart.map((item, i) => (
-            <div key={item.id} onClick={() => openPopup(item)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", cursor: "pointer", transition: "background 0.1s" }}
-              onMouseEnter={e => e.currentTarget.style.background = "#f8f5f0"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.name}</div>
-                <div style={{ fontSize: 11, color: "#8a7e6e" }}>{formatQty(item.qty, item.unit)} × ₹{item.price}</div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>{formatINR(item.total)}</span>
-                <button onClick={e => { e.stopPropagation(); updateQty(item.id, 0); }} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 2, display: "flex", alignItems: "center" }}>
-                  <Icon name="trash" size={13} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-        {cart.length > 0 && (
-          <div style={{ padding: "12px 14px", borderTop: "2px dashed #e5e0d8" }}>
-            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-              {["CASH", "UPI"].map(mode => (
-                <button key={mode} onClick={() => setPaymentMode(mode)} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: paymentMode === mode ? "#f59e0b" : "#e5e0d8", background: paymentMode === mode ? "#1a1310" : "#fff", color: paymentMode === mode ? "#f59e0b" : "#8a7e6e", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
-                  {mode === "CASH" ? "💵 CASH" : "📲 UPI"}
-                </button>
-              ))}
-            </div>
-            
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8a7e6e", marginBottom: 3 }}>
-              <span>Subtotal</span><span>{formatINR(cartSubtotal)}</span>
-            </div>
-            
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 19, fontWeight: 900, color: "#1a1310", marginBottom: 12, borderTop: "1.5px solid #e5e0d8", paddingTop: 8, marginTop: 4 }}>
-              <span>Total</span><span style={{ color: "#2563eb" }}>{formatINR(cartTotal)}</span>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => setCart([])} style={{ width: 40, height: 42, borderRadius: 10, border: "1.5px solid #fca5a5", background: "#fff", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Icon name="trash" size={15} />
-              </button>
-              <button onClick={holdBill} style={{ height: 42, padding: "0 14px", borderRadius: 10, background: "#f59e0b", color: "#1a1310", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
-                ⏸️ Hold
-              </button>
-              <button onClick={() => checkoutBill(paymentMode)} style={{ flex: 1, height: 42, borderRadius: 10, background: "#1a1310", color: "#f59e0b", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                <Icon name="print" size={15} /> Print & Save
-              </button>
-            </div>
-            {customerForm.phone && (
-              <button onClick={() => {
-                const msg = `*MANISH DAIRY*\nGanga Nagar, Meerut\n\n${cart.map(i => `${i.name} x${formatQty(i.qty, i.unit)} = ${formatINR(i.total)}`).join("\n")}\n\nSubtotal: ${formatINR(cartSubtotal)}${discount > 0 ? `\nDiscount (${discount}%): -${formatINR(discountAmt)}` : ""}\n*TOTAL: ${formatINR(cartTotal)}*\n\nThank you! 🥛`;
-                window.open(`https://wa.me/91${customerForm.phone}?text=${encodeURIComponent(msg)}`);
-              }} style={{ marginTop: 8, width: "100%", padding: "9px", borderRadius: 10, background: "#25d366", color: "#fff", border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                <Icon name="whatsapp" size={14} /> Send on WhatsApp
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {popup && (
-        <>
-          <div onClick={() => setPopup(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200 }} />
-          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: "#fff", borderRadius: 20, padding: 28, width: 340, zIndex: 201, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
-              <div style={{ fontSize: 36 }}>{CAT_ICONS[popup.category]}</div>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: "#1a1310" }}>{popup.name}</div>
-                <div style={{ fontSize: 13, color: "#8a7e6e" }}>₹{popup.price} / {popup.unit}</div>
-              </div>
-              <button onClick={() => setPopup(null)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "#8a7e6e", padding: 4 }}>
-                <Icon name="close" size={20} />
-              </button>
-            </div>
-            {popup.hasVariation && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Half ya Full?</div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button onClick={() => setPopup(p => ({ ...p, tempQty: 1, tempAmt: "", selectedVariation: "half", price: p.halfPrice }))}
-                    style={{ flex: 1, padding: "14px", borderRadius: 12, fontWeight: 900, fontSize: 15, cursor: "pointer", border: "2px solid", borderColor: popup.selectedVariation === "half" ? "#f59e0b" : "#e5e0d8", background: popup.selectedVariation === "half" ? "#1a1310" : "#f8f5f0", color: popup.selectedVariation === "half" ? "#f59e0b" : "#4a3f35" }}>
-                    HALF<br /><span style={{ fontSize: 13, fontWeight: 700 }}>₹{popup.halfPrice}</span>
-                  </button>
-                  <button onClick={() => setPopup(p => ({ ...p, tempQty: 1, tempAmt: "", selectedVariation: "full", price: p.fullPrice }))}
-                    style={{ flex: 1, padding: "14px", borderRadius: 12, fontWeight: 900, fontSize: 15, cursor: "pointer", border: "2px solid", borderColor: popup.selectedVariation === "full" ? "#ef4444" : "#e5e0d8", background: popup.selectedVariation === "full" ? "#ef4444" : "#f8f5f0", color: popup.selectedVariation === "full" ? "#fff" : "#4a3f35" }}>
-                    FULL<br /><span style={{ fontSize: 13, fontWeight: 700 }}>₹{popup.fullPrice}</span>
-                  </button>
-                </div>
-              </div>
-            )}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-                {popup.unit === "piece" ? "Kitne piece?" : "Kitna weight?"}
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {(popup.unit === "piece" ? [1, 2, 5, 10] : [0.25, 0.5, 1, 2]).map(p => (
-                  <button key={p} onClick={() => setPopup(prev => ({ ...prev, tempQty: p, tempAmt: "" }))} style={{ flex: 1, padding: "10px 0", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer", border: "2px solid", borderColor: popup.tempQty === p ? (CAT_COLORS[popup.category] || "#f59e0b") : "#e5e0d8", background: popup.tempQty === p ? (CAT_COLORS[popup.category] || "#f59e0b") : "#f8f5f0", color: popup.tempQty === p ? "#fff" : "#4a3f35" }}>
-                    {popup.unit === "piece" ? p : formatQty(p, popup.unit)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 10, marginBottom: 10, alignItems: "center" }}>
-              <button onClick={() => setPopup(p => ({ ...p, tempQty: Math.max(0, +((+p.tempQty - (p.unit === "piece" ? 1 : 0.25)).toFixed(3))) }))} style={popBtn}><Icon name="minus" size={14} /></button>
-              <input type="number" value={popup.tempQty} min="0" step={popup.unit === "piece" ? 1 : 0.25}
-                onChange={e => setPopup(p => ({ ...p, tempQty: e.target.value, tempAmt: "" }))}
-                style={{ flex: 1, textAlign: "center", padding: "10px", border: "2px solid #e5e0d8", borderRadius: 10, fontSize: 18, fontWeight: 900, outline: "none" }} />
-              <button onClick={() => setPopup(p => ({ ...p, tempQty: +((+p.tempQty + (p.unit === "piece" ? 1 : 0.25)).toFixed(3)) }))} style={popBtn}><Icon name="plus" size={14} /></button>
-            </div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 18, alignItems: "center" }}>
-              <input type="number" value={popup.tempAmt} onChange={e => {
-  const amt = e.target.value;
-  setPopup(p => ({
-    ...p,
-    tempAmt: amt,
-    tempQty: (amt && p.price > 0) ? +((+amt / p.price).toFixed(3)) : p.tempQty
-  }));
-}} placeholder="Ya amount type karo (₹)" style={{ flex: 1, padding: "9px 12px", border: "1.5px solid #e5e0d8", borderRadius: 10, fontSize: 13, outline: "none" }} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, background: "#f8f5f0", borderRadius: 10, padding: "10px 14px" }}>
-              <span style={{ fontSize: 13, color: "#8a7e6e", fontWeight: 600 }}>Amount</span>
-              <span style={{ fontSize: 20, fontWeight: 900, color: "#2563eb" }}>
-  {popup.tempAmt !== "" && popup.tempAmt !== undefined 
-    ? formatINR(+popup.tempAmt || 0)
-    : formatINR((+popup.tempQty || 0) * popup.price)}
-</span>
-            </div>
-            <button onClick={confirmPopup} style={{ width: "100%", padding: "13px", borderRadius: 12, background: "#1a1310", color: "#f59e0b", border: "none", fontWeight: 900, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-              <Icon name="check" size={18} /> Bill Mein Add Karo
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-const popBtn = { width: 44, height: 44, borderRadius: 10, border: "1.5px solid #e5e0d8", background: "#f8f5f0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#4a3f35", flexShrink: 0, fontSize: 18 };
-
-// ─── PRODUCTS VIEW ────────────────────────────────────────────────────────────
-function ProductsView({ products, onSave, onDelete, dbCats, setDbCats }) {
-  const [form, setForm] = useState({ name: "", category: "Sweets", price: "", cost: "", unit: "kg", hasVariation: false, halfPrice: "", fullPrice: "" });
-  const [editing, setEditing] = useState(null);
-  const [search, setSearch] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [cats, setCats] = useState([...["Sweets", "Snacks", "Tandoor"], ...dbCats]);      // ← YEH ADD KARO
-  const [newCat, setNewCat] = useState("");
-  const addCategory = async () => {
-    const trimmed = newCat.trim();
-    if (!trimmed || cats.includes(trimmed)) return;
-    try {
-      await apiCall("/categories", "POST", { name: trimmed });
-      setDbCats(prev => [...prev, trimmed]);
-      setCats(prev => [...prev, trimmed]);
-      setNewCat("");
-    } catch (e) {
-      alert("Category save nahi hui: " + e.message);
-    }
-  };
-  const deleteCategory = async (catName) => {
-    if (!window.confirm(`"${catName}" category delete karein?`)) return;
-    try {
-      await apiCall(`/categories/${catName}`, "DELETE");
-      setDbCats(prev => prev.filter(c => c !== catName));
-      setCats(prev => prev.filter(c => c !== catName));
-    } catch (e) {
-      alert("Delete nahi hui: " + e.message);
-    }
-  };
-
-  const save = async () => {
-    if (!form.name || form.price === "" || form.cost === "") return;
-    setSaving(true);
-    const ok = await onSave(form, editing);
-    if (ok) {
-      setEditing(null);
-      setForm({ name: "", category: "Sweets", price: "", cost: "", unit: "kg" });
-    }
-    setSaving(false);
-  };
-
-  const edit = (p) => {
-    setEditing(p.id);
-    setForm({ name: p.name, category: p.category, price: p.price, cost: p.cost, unit: p.unit, hasVariation: p.hasVariation || false, halfPrice: p.halfPrice || "", fullPrice: p.fullPrice || "" });
-  };
-
-  const del = async (id) => {
-    if (window.confirm("Yeh product delete karna chahte ho?")) {
-      await onDelete(id);
-    }
-  };
-
-  const filtered = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
-
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 24, alignItems: "start" }}>
-      <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", padding: 20, position: "sticky", top: 80 }}>
-        <div style={{ fontSize: 15, fontWeight: 800, color: "#1a1310", marginBottom: 16 }}>{editing ? "✏️ Edit Product" : "➕ Add Product"}</div>
-        {[["Product Name", "name", "text", "Paneer"], ["Selling Price (₹)", "price", "number", "400"], ["Cost Price (₹)", "cost", "number", "280"]].map(([label, key, type, placeholder]) => (
-          <div key={key} style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 0.5, textTransform: "uppercase" }}>{label}</label>
-            <input type={type} value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder}
-              style={{ width: "100%", padding: "9px 12px", border: "1px solid #e5e0d8", borderRadius: 8, fontSize: 14, outline: "none", marginTop: 4, boxSizing: "border-box" }} />
-          </div>
-        ))}
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 0.5, textTransform: "uppercase" }}>Category</label>
-          <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} style={{ width: "100%", padding: "9px 12px", border: "1px solid #e5e0d8", borderRadius: 8, fontSize: 14, outline: "none", marginTop: 4, background: "#fff" }}>
-            {cats.map(c => <option key={c}>{c}</option>)}
-          </select>
-          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <input
-              value={newCat}
-              onChange={e => setNewCat(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && addCategory()}
-              placeholder="Nai category..."
-              style={{ flex: 1, padding: "7px 10px", border: "1px solid #e5e0d8", borderRadius: 8, fontSize: 13, outline: "none" }}
-            />
-            <button onClick={addCategory} style={{ padding: "7px 14px", background: "#1a1310", color: "#f59e0b", border: "none", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
-              + Add
-            </button>
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-            {cats.map(c => (
-              <span key={c} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#f0ebe4", borderRadius: 20, padding: "4px 10px", fontSize: 12, fontWeight: 600, color: "#4a3f35" }}>
-                {c}
-                <button onClick={() => deleteCategory(c)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontWeight: 900, fontSize: 13, padding: 0, lineHeight: 1 }}>✕</button>
-              </span>
-            ))}
-          </div>
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 0.5, textTransform: "uppercase" }}>Unit</label>
-          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-            {["kg", "litre", "piece"].map(u => (
-              <button key={u} onClick={() => setForm(p => ({ ...p, unit: u }))} style={{ flex: 1, padding: "8px", borderRadius: 8, border: `1.5px solid ${form.unit === u ? "#1a1310" : "#e5e0d8"}`, background: form.unit === u ? "#1a1310" : "#fff", color: form.unit === u ? "#f59e0b" : "#4a3f35", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{u}</button>
-            ))}
-          </div>
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 0.5, textTransform: "uppercase" }}>Half / Full Variation</label>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
-            <button onClick={() => setForm(p => ({ ...p, hasVariation: !p.hasVariation }))}
-              style={{ padding: "7px 16px", borderRadius: 8, border: `1.5px solid ${form.hasVariation ? "#f59e0b" : "#e5e0d8"}`, background: form.hasVariation ? "#1a1310" : "#fff", color: form.hasVariation ? "#f59e0b" : "#8a7e6e", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
-              {form.hasVariation ? "✅ ON" : "OFF"}
-            </button>
-            <span style={{ fontSize: 12, color: "#8a7e6e" }}>Toggle for Tandoor/Gravy items</span>
-          </div>
-          {form.hasVariation && (
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e" }}>HALF Price (₹)</label>
-                <input type="number" value={form.halfPrice} onChange={e => setForm(p => ({ ...p, halfPrice: e.target.value }))} placeholder="e.g. 130"
-                  style={{ width: "100%", padding: "8px 10px", border: "1.5px solid #f59e0b", borderRadius: 8, fontSize: 14, outline: "none", marginTop: 4, boxSizing: "border-box" }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e" }}>FULL Price (₹)</label>
-                <input type="number" value={form.fullPrice} onChange={e => setForm(p => ({ ...p, fullPrice: e.target.value }))} placeholder="e.g. 230"
-                  style={{ width: "100%", padding: "1.5px solid #f59e0b", borderRadius: 8, fontSize: 14, outline: "none", marginTop: 4, boxSizing: "border-box", border: "1.5px solid #f59e0b", padding: "8px 10px" }} />
-              </div>
-            </div>
-          )}
-        </div>
-        {form.price && form.cost && (
-          <div style={{ marginBottom: 12, padding: "8px 12px", background: "#f0fdf4", borderRadius: 8, fontSize: 12 }}>
-            Margin: <strong style={{ color: "#16a34a" }}>₹{+form.price - +form.cost}</strong> ({Math.round(((+form.price - +form.cost) / +form.price) * 100)}%)
-          </div>
-        )}
-        <div style={{ display: "flex", gap: 8 }}>
-          {editing && <button onClick={() => { setEditing(null); setForm({ name: "", category: "Sweets", price: "", cost: "", unit: "kg" }); }} style={{ flex: "0 0 44px", height: 44, borderRadius: 10, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", color: "#8a7e6e", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="close" size={16} /></button>}
-          <button onClick={save} disabled={saving} style={{ flex: 1, padding: "11px", background: "#1a1310", color: "#f59e0b", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: saving ? 0.7 : 1 }}>
-            <Icon name="save" size={16} /> {saving ? "Saving..." : editing ? "Update" : "Add Product"}
-          </button>
-        </div>
-
-      </div>
-
-
-      <div style={{ maxHeight: "calc(100vh - 100px)", overflowY: "auto", paddingRight: 4 }}>
-        <div style={{ position: "relative", marginBottom: 16 }}>
-          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#8a7e6e" }}><Icon name="search" size={16} /></span>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..." style={{ width: "100%", padding: "10px 12px 10px 36px", borderRadius: 10, border: "1px solid #e5e0d8", background: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-        </div>
-        <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", overflow: "hidden" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 80px", padding: "10px 16px", background: "#f8f5f0", fontSize: 11, fontWeight: 700, color: "#8a7e6e", textTransform: "uppercase", letterSpacing: 0.5 }}>
-            <span>Product</span><span>Category</span><span>Sell Price</span><span>Cost</span><span>Margin</span><span>Actions</span>
-          </div>
-          {filtered.map((p, i) => (
-            <div key={p.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 80px", padding: "12px 16px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", alignItems: "center", fontSize: 13 }}>
-              <div>
-                <div style={{ fontWeight: 700, color: "#1a1310" }}>{p.name}</div>
-                <div style={{ fontSize: 11, color: "#8a7e6e" }}>{p.unit}</div>
-              </div>
-              <span style={{ display: "inline-block", padding: "3px 8px", borderRadius: 20, background: CAT_COLORS[p.category] + "22", color: CAT_COLORS[p.category], fontSize: 11, fontWeight: 700 }}>{p.category}</span>
-              <span style={{ fontWeight: 700, color: "#2563eb" }}>₹{p.price}</span>
-              <span style={{ color: "#ef4444" }}>₹{p.cost}</span>
-              <span style={{ color: "#16a34a", fontWeight: 700 }}>₹{p.price - p.cost} <span style={{ fontSize: 10, color: "#8a7e6e" }}>({Math.round(((p.price - p.cost) / p.price) * 100)}%)</span></span>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button onClick={() => edit(p)} style={{ padding: "6px", borderRadius: 7, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", color: "#2563eb" }}><Icon name="edit" size={13} /></button>
-                <button onClick={() => del(p.id)} style={{ padding: "6px", borderRadius: 7, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", color: "#ef4444" }}><Icon name="trash" size={13} /></button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── SALES VIEW ───────────────────────────────────────────────────────────────
-function SalesView({ bills: initialBills, onDelete, onDeleteAll, onEdit, products }) {
-const [filter, setFilter] = useState("today");
-const [customDate, setCustomDate] = useState("");
-const [bills, setBills] = useState(initialBills);
-const [loading, setLoading] = useState(false);
-useEffect(() => {
-    async function fetchBills() {
-      let path = "/bills";
-      if (filter === "today") path = `/bills?date=${today()}`;
-      else if (filter === "yesterday") path = `/bills?date=${new Date(Date.now() - 86400000).toISOString().slice(0, 10)}`;
-      else if (filter === "month") path = `/bills?month=${thisMonth()}`;
-      else if (filter === "custom" && customDate) path = `/bills?date=${customDate}`;
-     setLoading(true);
-    try {
-      const data = await apiCall(path);
-      setBills(data);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-    }
-    fetchBills();
-  }, [filter, customDate]);
-
-  
-  const [selected, setSelected] = useState([]);
-  const [editingBill, setEditingBill] = useState(null);
-  const [editItems, setEditItems] = useState([]);
-
-  const [editSaving, setEditSaving] = useState(false);  
-  const [payFilter, setPayFilter] = useState("ALL");
-  const todayStr = today();
-  const monthStr = thisMonth();
-  const openEdit = (bill) => {
-    setEditingBill(bill);
-    setEditItems(bill.items.map(i => ({ ...i })));
-    
-  };
-
-  const updateEditQty = (itemId, qty) => {
-    if (qty <= 0) {
-      setEditItems(prev => prev.filter(i => i.id !== itemId));
-    } else {
-      setEditItems(prev => prev.map(i =>
-        i.id === itemId ? { ...i, qty, total: qty * i.price } : i
-      ));
-    }
-  };
-
-  const addEditItem = (product) => {
-    const exists = editItems.find(i => i.id === product.id);
-    if (exists) {
-      updateEditQty(product.id, exists.qty + 1);
-    } else {
-      setEditItems(prev => [...prev, { ...product, qty: 1, total: product.price }]);
-    }
-  };
-
-  const saveEdit = async () => {
-    if (!editItems.length) { alert("Bill mein kam se kam 1 item hona chahiye!"); return; }
-    setEditSaving(true);
-    const ok = await onEdit(editingBill.id, editItems, 0);
-    if (ok) setEditingBill(null);
-    setEditSaving(false);
-  };
-const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  const filtered = bills.filter(b => {
-    if (payFilter !== "ALL" && (b.paymentMode || "CASH") !== payFilter) return false;
-    return true;
-  });
-
-  const totalSales = filtered.reduce((s, b) => s + b.total, 0);
-  const totalProfit = filtered.reduce((s, b) => s + b.profit, 0);
-  const totalDiscount = filtered.reduce((s, b) => s + (b.discountAmt || 0), 0);
-  const margin = totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0;
- const labels = { today: "Today", yesterday: "Yesterday", month: "This Month", all: "All Time", custom: customDate || "Custom" };
-
-  const toggleSelect = (id) => {
-    setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
-
-  const deleteSelected = async () => {
-  if (!selected.length) return;
-  const pass = prompt("Admin Password Enter Karo:");
-  if (pass !== "aniket123") { alert("❌ Wrong Password!"); return; }
-  if (!window.confirm(`${selected.length} bills delete karne hain?`)) return;
-  for (const id of selected) {
-    await onDelete(id);
-  }
-  setSelected([]);
-};
-
-  const deleteAll = () => {
-    if (!window.confirm("Saari history delete karna chahte ho? Yeh action undo nahi hoga!")) return;
-    onDeleteAll();
-    setSelected([]);
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ fontSize: 20, fontWeight: 900, color: "#1a1310" }}>💰 Sales Overview</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {["today", "yesterday", "month", "all"].map(f => (
-  <button key={f} onClick={() => setFilter(f)} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid", borderColor: filter === f ? "#f59e0b" : "#e5e0d8", background: filter === f ? "#f59e0b" : "#fff", color: filter === f ? "#1a1310" : "#8a7e6e" }}>{labels[f]}</button>
-))}
-<input
-  type="date"
-  value={customDate}
-  onChange={e => { setCustomDate(e.target.value); setFilter("custom"); }}
-  style={{ padding: "8px 12px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: `1.5px solid ${filter === "custom" ? "#f59e0b" : "#e5e0d8"}`, background: filter === "custom" ? "#fff8ee" : "#fff", color: "#1a1310", outline: "none" }}
-/>
-          <div style={{ width: 1, height: 24, background: "#e5e0d8" }} />
-          {["ALL", "CASH", "UPI"].map(pm => (
-            <button key={pm} onClick={() => setPayFilter(pm)} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid", borderColor: payFilter === pm ? "#2563eb" : "#e5e0d8", background: payFilter === pm ? "#2563eb" : "#fff", color: payFilter === pm ? "#fff" : "#8a7e6e" }}>
-              {pm === "ALL" ? "💳 All" : pm === "CASH" ? "💵 Cash" : "📲 UPI"}
-            </button>
-          ))}
-          {selected.length > 0 && (
-            <button onClick={deleteSelected} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid #ef4444", background: "#ef4444", color: "#fff" }}>
-              🗑️ Delete Selected ({selected.length})
-            </button>
-          )}
-          <button onClick={deleteAll} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid #ef4444", background: "#fff", color: "#ef4444" }}>
-            🗑️ Delete All
-          </button>
-        </div>
-        <button onClick={() => exportToExcel(filtered, filter)} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid #16a34a", background: "#f0fdf4", color: "#16a34a" }}>
-          📊 Export Excel
+  if (error)
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+          background: "#f8f5f0",
+          flexDirection: "column",
+          gap: 16,
+          padding: 24,
+          textAlign: "center",
+        }}
+      >
+        <div style={{ fontSize: 48 }}>❌</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "#ef4444" }}>{error}</div>
+        <button
+          onClick={() => window.location.reload()}
+          style={{ padding: "10px 24px", background: "#1a1310", color: "#f59e0b", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer" }}
+        >
+          Dobara Try Karo
         </button>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
-        {[
-          { label: "Total Sales", value: formatINR(totalSales), color: "#2563eb", icon: "💳", sub: `${filtered.length} bills` },
-          { label: "Total Profit", value: "₹0.00", color: "#16a34a", icon: "📈", sub: "" },
-          { label: "Discount Given", value: formatINR(totalDiscount), color: "#f59e0b", icon: "🏷️", sub: `${filtered.filter(b => b.discountPct > 0).length} discounted bills` },
-          { label: "Avg Bill Value", value: filtered.length ? formatINR(totalSales / filtered.length) : "₹0.00", color: "#7c3aed", icon: "🧾", sub: "per bill" },
-        ].map(k => (
-          <div key={k.label} style={{ background: "#fff", borderRadius: 16, padding: "20px", border: "1px solid #e5e0d8" }}>
-            <div style={{ fontSize: 22, marginBottom: 6 }}>{k.icon}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>{k.label}</div>
-            <div style={{ fontSize: 24, fontWeight: 900, color: k.color, marginBottom: 2 }}>{k.value}</div>
-            <div style={{ fontSize: 12, color: "#8a7e6e" }}>{k.sub}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        {[
-          { label: "Cash Sales", value: formatINR(filtered.filter(b => (b.paymentMode || "CASH") === "CASH").reduce((s, b) => s + b.total, 0)), color: "#16a34a", icon: "💵", sub: `${filtered.filter(b => (b.paymentMode || "CASH") === "CASH").length} bills` },
-          { label: "UPI Sales", value: formatINR(filtered.filter(b => b.paymentMode === "UPI").reduce((s, b) => s + b.total, 0)), color: "#2563eb", icon: "📲", sub: `${filtered.filter(b => b.paymentMode === "UPI").length} bills` },
-        ].map(k => (
-          <div key={k.label} style={{ background: "#fff", borderRadius: 16, padding: "20px", border: "1px solid #e5e0d8" }}>
-            <div style={{ fontSize: 22, marginBottom: 6 }}>{k.icon}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>{k.label}</div>
-            <div style={{ fontSize: 24, fontWeight: 900, color: k.color, marginBottom: 2 }}>{k.value}</div>
-            <div style={{ fontSize: 12, color: "#8a7e6e" }}>{k.sub}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", overflow: "hidden" }}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e0d8", fontSize: 14, fontWeight: 800, color: "#1a1310" }}>🧾 Bills — {labels[filter]}</div>
-        {loading && (
-  <div style={{textAlign:"center", padding:"40px 0", fontSize:15, color:"#8a7e6e"}}>
-    ⏳ Data load ho raha hai...
-  </div>
-)}
-        {filtered.length === 0 && <div style={{ textAlign: "center", color: "#c9b9a8", padding: "40px 0", fontSize: 14 }}>Koi bill nahi {labels[filter].toLowerCase()} mein</div>}
-        {filtered.map((b, i) => (
-          <div key={b.id} style={{ display: "flex", alignItems: "center", padding: "13px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: 16, flexWrap: "wrap", background: selected.includes(b.id) ? "#fff8ee" : "transparent" }}>
-            <input type="checkbox" checked={selected.includes(b.id)} onChange={() => toggleSelect(b.id)} style={{ width: 16, height: 16, cursor: "pointer", flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 140 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>{b.id}</div>
-              <div style={{ fontSize: 11, color: "#8a7e6e" }}>{formatDate(b.date)} · {formatTime(b.date)}</div>
-            </div>
-            {b.customer?.name && <div style={{ fontSize: 12, color: "#4a3f35" }}>👤 {b.customer.name}</div>}
-            <div style={{ fontSize: 12, color: "#8a7e6e" }}>{b.items?.length} items</div>
-            {b.discountPct > 0 && <div style={{ fontSize: 12, color: "#f59e0b", fontWeight: 700 }}>🏷️ {b.discountPct}% off</div>}
-            <div style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 20, background: (b.paymentMode || "CASH") === "UPI" ? "#eff6ff" : "#f0fdf4", color: (b.paymentMode || "CASH") === "UPI" ? "#2563eb" : "#16a34a" }}>
-              {(b.paymentMode || "CASH") === "UPI" ? "📲 UPI" : "💵 CASH"}
-            </div>
-            <div style={{ textAlign: "right" }}>
-              {formatINR(b.total)}
-            </div>
-            <button onClick={() => openEdit(b)} style={{ padding: "6px 10px", borderRadius: 8, border: "1.5px solid #2563eb", background: "#eff6ff", cursor: "pointer", fontSize: 11, color: "#2563eb", fontWeight: 700, display: "flex", gap: 4, alignItems: "center" }}>
-              <Icon name="edit" size={12} /> Edit
-            </button>
-            <button onClick={() => printBill(b)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", fontSize: 11, color: "#4a3f35", display: "flex", gap: 4, alignItems: "center" }}>
-              <Icon name="print" size={12} /> Print
-            </button>
-            <button onClick={() => { if (window.confirm("Yeh bill delete karein?")) onDelete(b.id); }} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fff", cursor: "pointer", fontSize: 11, color: "#ef4444", display: "flex", gap: 4, alignItems: "center" }}>
-              <Icon name="trash" size={12} /> Delete
-            </button>
-          </div>
-        ))}
+    );
 
-      </div>
-
-      {editingBill && (
-        <>
-          <div onClick={() => setEditingBill(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 300 }} />
-          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: "#fff", borderRadius: 20, padding: 28, width: 520, maxHeight: "85vh", overflowY: "auto", zIndex: 301, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 900, color: "#1a1310" }}>✏️ Edit Bill — {editingBill.id}</div>
-                <div style={{ fontSize: 12, color: "#8a7e6e" }}>{formatDate(editingBill.date)} · {formatTime(editingBill.date)}</div>
-              </div>
-              <button onClick={() => setEditingBill(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#8a7e6e" }}>
-                <Icon name="close" size={20} />
-              </button>
-            </div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#8a7e6e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Items</div>
-            <div style={{ background: "#f8f5f0", borderRadius: 12, overflow: "hidden", marginBottom: 16 }}>
-              {editItems.map((item, i) => (
-                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderTop: i > 0 ? "1px solid #e5e0d8" : "none" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>{item.name}</div>
-                    <div style={{ fontSize: 11, color: "#8a7e6e" }}>₹{item.price}/{item.unit}</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <button onClick={() => updateEditQty(item.id, +(item.qty - (item.unit === "piece" ? 1 : 0.25)).toFixed(3))} style={{ width: 30, height: 30, borderRadius: 8, border: "1.5px solid #e5e0d8", background: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
-                    <input type="number" value={item.qty} min="0" step={item.unit === "piece" ? 1 : 0.25} onChange={e => updateEditQty(item.id, +e.target.value)} style={{ width: 64, textAlign: "center", padding: "6px", border: "1.5px solid #e5e0d8", borderRadius: 8, fontSize: 14, fontWeight: 800, outline: "none" }} />
-                    <button onClick={() => updateEditQty(item.id, +(item.qty + (item.unit === "piece" ? 1 : 0.25)).toFixed(3))} style={{ width: 30, height: 30, borderRadius: 8, border: "1.5px solid #e5e0d8", background: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
-                  </div>
-                  <div style={{ width: 80, textAlign: "right", fontSize: 13, fontWeight: 800, color: "#2563eb" }}>{formatINR(item.qty * item.price)}</div>
-                  <button onClick={() => updateEditQty(item.id, 0)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 4 }}>
-                    <Icon name="trash" size={14} />
-                  </button>
-                </div>
-              ))}
-              {editItems.length === 0 && <div style={{ padding: "20px", textAlign: "center", color: "#c9b9a8", fontSize: 13 }}>Koi item nahi — neeche se add karo</div>}
-            </div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#8a7e6e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Naya Item Add Karo</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20, maxHeight: 150, overflowY: "auto" }}>
-              {products.map(p => (
-                <button key={p.id} onClick={() => addEditItem(p)} style={{ padding: "6px 12px", borderRadius: 20, border: "1.5px solid #e5e0d8", background: editItems.find(i => i.id === p.id) ? "#1a1310" : "#f8f5f0", color: editItems.find(i => i.id === p.id) ? "#f59e0b" : "#4a3f35", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                  + {p.name} ₹{p.price}
-                </button>
-              ))}
-            </div>
-            
-            {(() => {
-              const sub = editItems.reduce((s, i) => s + i.qty * i.price, 0);
-             const tot = sub;
-              const diff = tot - editingBill.total;
-              return (
-                <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 12, padding: "12px 16px", marginBottom: 20 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8a7e6e", marginBottom: 4 }}>
-                    <span>Subtotal</span><span>{formatINR(sub)}</span>
-                  </div>
-                 
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 900, color: "#1a1310", borderTop: "1px solid #bae6fd", paddingTop: 8, marginTop: 4 }}>
-                    <span>New Total</span><span style={{ color: "#2563eb" }}>{formatINR(tot)}</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6, fontWeight: 700, color: diff >= 0 ? "#16a34a" : "#ef4444" }}>
-                    <span>Sales Change</span><span>{diff >= 0 ? "+" : ""}{formatINR(diff)}</span>
-                  </div>
-                </div>
-              );
-            })()}
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setEditingBill(null)} style={{ flex: "0 0 44px", height: 46, borderRadius: 10, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", color: "#8a7e6e", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Icon name="close" size={16} />
-              </button>
-              <button onClick={saveEdit} disabled={editSaving} style={{ flex: 1, padding: "13px", background: "#1a1310", color: "#f59e0b", border: "none", borderRadius: 10, fontWeight: 900, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: editSaving ? 0.7 : 1 }}>
-                <Icon name="save" size={16} /> {editSaving ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ─── ANALYTICS VIEW ───────────────────────────────────────────────────────────
-function AnalyticsView({ bills }) {
-  const todayBills = bills.filter(b => b.date?.slice(0, 10) === today());
-  const monthBills = bills.filter(b => b.date?.slice(0, 7) === thisMonth());
-
-  const totalSales = bills.reduce((s, b) => s + b.total, 0);
-  const totalProfit = bills.reduce((s, b) => s + b.profit, 0);
-  const todaySales = todayBills.reduce((s, b) => s + b.total, 0);
-  const todayProfit = todayBills.reduce((s, b) => s + b.profit, 0);
-
-  const dailyMap = {};
-  monthBills.forEach(b => {
-    const d = b.date?.slice(0, 10);
-    if (!dailyMap[d]) dailyMap[d] = { sales: 0, profit: 0, count: 0 };
-    dailyMap[d].sales += b.total;
-    dailyMap[d].profit += b.profit;
-    dailyMap[d].count++;
-  });
-  const dailyData = Object.entries(dailyMap).sort(([a], [b]) => a.localeCompare(b));
-  const maxSales = Math.max(...dailyData.map(([, v]) => v.sales), 1);
-
-  const itemMap = {};
-  bills.forEach(b => b.items?.forEach(i => {
-    if (!itemMap[i.name]) itemMap[i.name] = { qty: 0, revenue: 0, count: 0 };
-    itemMap[i.name].qty += i.qty;
-    itemMap[i.name].revenue += i.total;
-    itemMap[i.name].count++;
-  }));
-  const topItems = Object.entries(itemMap).sort(([, a], [, b]) => b.revenue - a.revenue).slice(0, 8);
-  const maxRev = Math.max(...topItems.map(([, v]) => v.revenue), 1);
-  const itemQtyMap = {};
-  bills.forEach(b => b.items?.forEach(i => {
-    if (!itemQtyMap[i.name]) itemQtyMap[i.name] = { qty: 0, unit: i.unit, category: i.category || "Other" };
-    itemQtyMap[i.name].qty += i.qty;
-  }));
-  const itemQtyData = Object.entries(itemQtyMap).sort(([, a], [, b]) => b.qty - a.qty);
-
+  // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-        {[
-          { label: "Today Sales", value: formatINR(todaySales), color: "#2563eb", sub: `${todayBills.length} bills` },
-          { label: "Today Profit", value: "₹0.00", color: "#16a34a", sub: `${todaySales > 0 ? Math.round((todayProfit / todaySales) * 100) : 0}% margin` },
-          { label: "Total Sales", value: formatINR(totalSales), color: "#7c3aed", sub: `${bills.length} bills ever` },
-          { label: "Total Profit", value: "₹0.00", color: "#ea580c", sub: `${totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0}% margin` },
-        ].map(k => (
-          <div key={k.label} style={{ background: "#fff", borderRadius: 16, padding: "20px", border: "1px solid #e5e0d8" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>{k.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: k.color, marginBottom: 4 }}>{k.value}</div>
-            <div style={{ fontSize: 12, color: "#8a7e6e" }}>{k.sub}</div>
-          </div>
-        ))}
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+        background: "#f8f5f0",
+        fontFamily: "'Segoe UI', sans-serif",
+      }}
+    >
+      {/* Footer */}
+      <div
+        style={{
+          backgroundColor: "#1a1310",
+          color: "#f5f0eb",
+          textAlign: "center",
+          padding: "14px",
+          fontSize: "13px",
+        }}
+      >
+        Developed by{" "}
+        <strong style={{ color: "#f59e0b" }}>Aniket Kansal</strong> &{" "}
+        <strong style={{ color: "#f59e0b" }}>Akshansh Mittal</strong>
+        &nbsp;|&nbsp; 📞 +91-8126700718 & +91-8766392706
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-        <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", padding: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 16 }}>📅 This Month – Daily Sales</div>
-          {dailyData.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "30px 0" }}>No data yet</div>}
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 160, overflowX: "auto" }}>
-            {dailyData.map(([date, v]) => (
-              <div key={date} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 28 }}>
-                <div style={{ fontSize: 9, color: "#2563eb", fontWeight: 700 }}>₹{Math.round(v.sales / 100)}h</div>
-                <div style={{ width: 20, borderRadius: "4px 4px 0 0", background: "linear-gradient(to top, #2563eb, #60a5fa)", height: Math.max(4, (v.sales / maxSales) * 130) }} />
-                <div style={{ width: 20, borderRadius: "4px 4px 0 0", background: "linear-gradient(to top, #16a34a, #4ade80)", height: Math.max(2, (v.profit / maxSales) * 130) }} />
-                <div style={{ fontSize: 9, color: "#8a7e6e", textAlign: "center" }}>{date.slice(8)}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
-            <span style={{ fontSize: 11, color: "#2563eb" }}>🔵 Sales</span>
-            <span style={{ fontSize: 11, color: "#16a34a" }}>🟢 Profit</span>
-          </div>
-        </div>
+      <Navbar
+        view={view}
+        setView={setView}
+        onLogout={() => {
+          localStorage.clear();
+          setToken(null);
+        }}
+      />
 
-        <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", padding: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 16 }}>🏆 Top Selling Items</div>
-          {topItems.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "30px 0" }}>No data yet</div>}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {topItems.map(([name, v], i) => (
-              <div key={name}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
-                  <span style={{ fontWeight: 700, color: "#1a1310" }}>{i + 1}. {name}</span>
-                  <span style={{ color: "#2563eb", fontWeight: 700 }}>{formatINR(v.revenue)}</span>
-                </div>
-                <div style={{ height: 6, borderRadius: 999, background: "#f0ebe4", overflow: "hidden" }}>
-                  <div style={{ height: "100%", borderRadius: 999, background: `hsl(${220 - i * 20}, 70%, 55%)`, width: `${(v.revenue / maxRev) * 100}%`, transition: "width 0.5s" }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+      <div
+        style={{
+          padding: "24px",
+          maxWidth: 1400,
+          margin: "0 auto",
+          width: "100%",
+          boxSizing: "border-box",
+        }}
+      >
+        {view === "billing" && (
+          <BillingView
+            products={products}
+            filtered={filtered}
+            bills={bills}
+            category={category}
+            setCategory={setCategory}
+            search={search}
+            setSearch={setSearch}
+            cart={cart}
+            setCart={setCart}
+            addToCart={addToCart}
+            updateQty={updateQty}
+            setQtyPreset={setQtyPreset}
+            cartTotal={cartTotal}
+            cartSubtotal={cartSubtotal}
+            discountAmt={discountAmt}
+            discount={discount}
+            setDiscount={setDiscount}
+            customerForm={customerForm}
+            setCustomerForm={setCustomerForm}
+            checkoutBill={checkoutBill}
+            dbCats={dbCats}
+          />
+        )}
+        {view === "products" && (
+          <ProductsView
+            products={products}
+            onSave={handleSaveProduct}
+            onDelete={handleDeleteProduct}
+            dbCats={dbCats}
+            setDbCats={setDbCats}
+          />
+        )}
+        {view === "sales" && (
+          <SalesView
+            bills={bills}
+            onDelete={handleDeleteBill}
+            onDeleteAll={handleDeleteAllBills}
+            onEdit={handleEditBill}
+            products={products}
+          />
+        )}
+        {view === "analytics" && <AnalyticsView bills={bills} />}
+        {view === "customers" && (
+          <CustomersView
+            customers={customers}
+            bills={bills}
+            setCart={setCart}
+            setView={setView}
+          />
+        )}
       </div>
-
-      <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", overflow: "hidden" }}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e0d8", fontSize: 14, fontWeight: 800, color: "#1a1310" }}>🧾 Recent Bills</div>
-        {bills.slice(0, 20).map((b, i) => (
-          <div key={b.id} style={{ display: "flex", alignItems: "center", padding: "12px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: 16 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>{b.id}</div>
-              <div style={{ fontSize: 11, color: "#8a7e6e" }}>{formatDate(b.date)} {formatTime(b.date)} · {b.items?.length} items</div>
-            </div>
-            {b.customer?.name && <div style={{ fontSize: 12, color: "#4a3f35" }}>👤 {b.customer.name}</div>}
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#2563eb" }}>{formatINR(b.total)}</div>
-            </div>
-            <button onClick={() => printBill(b)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", fontSize: 11, color: "#4a3f35", display: "flex", gap: 4, alignItems: "center" }}>
-              <Icon name="print" size={12} /> Print
-            </button>
-          </div>
-        ))}
-        {bills.length === 0 && <div style={{ textAlign: "center", color: "#c9b9a8", padding: "30px 0" }}>No bills yet. Start billing!</div>}
-      </div>
-      <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", padding: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 16 }}>📦 Item-wise Total Quantity Sold</div>
-        {itemQtyData.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "20px 0" }}>No data yet</div>}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
-          {itemQtyData.map(([name, v]) => (
-            <div key={name} style={{ background: "#f8f5f0", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e0d8" }}>
-              <div style={{ fontSize: 11, color: CAT_COLORS[v.category] || "#8a7e6e", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{v.category}</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 8 }}>{name}</div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: CAT_COLORS[v.category] || "#f59e0b" }}>
-                {formatQty(v.qty, v.unit)}
-              </div>
-              <div style={{ fontSize: 11, color: "#8a7e6e", marginTop: 4 }}>Total sold</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── CUSTOMERS VIEW ───────────────────────────────────────────────────────────
-function CustomersView({ customers, bills, setCart, setView }) {
-  const [search, setSearch] = useState("");
-  // search change hone par selected clear karo
-  const [selected, setSelected] = useState(null);
-
-  const filtered = customers.filter(c =>
-    c.name?.toLowerCase().includes(search.toLowerCase()) ||
-    c.phone?.includes(search)
-  );
-
-  const customerBills = selected ? bills.filter(b => selected.bills?.includes(b.id)) : [];
-
-  const repeatOrder = (bill) => {
-    setCart(bill.items.map(i => ({ ...i, qty: i.qty, total: i.qty * i.price })));
-    setView("billing");
-  };
-
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 24, alignItems: "start" }}>
-      <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", overflow: "hidden" }}>
-        <div style={{ padding: "14px 16px", borderBottom: "1px solid #e5e0d8" }}>
-          <div style={{ position: "relative" }}>
-            <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#8a7e6e" }}><Icon name="search" size={14} /></span>
-            <input value={search} onChange={e => { setSearch(e.target.value); setSelected(null); }} placeholder="Search by name or phone..." style={{ width: "100%", padding: "8px 10px 8px 32px", border: "1px solid #e5e0d8", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
-          </div>
-        </div>
-        <div style={{ maxHeight: "70vh", overflowY: "auto" }}>
-          {filtered.length === 0 && <div style={{ textAlign: "center", color: "#c9b9a8", padding: "30px 0", fontSize: 13 }}>No customers yet</div>}
-          {filtered.map(c => (
-            <button key={c.phone} onClick={() => setSelected(c)} style={{ width: "100%", textAlign: "left", padding: "13px 16px", borderBottom: "1px solid #f0ebe4", background: selected?.phone === c.phone ? "#f8f5f0" : "#fff", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#1a1310", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b", fontSize: 16, fontWeight: 900, flexShrink: 0 }}>
-                {c.name ? c.name[0].toUpperCase() : "?"}
-              </div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>{c.name || "Unknown"}</div>
-                <div style={{ fontSize: 11, color: "#8a7e6e" }}><Icon name="phone" size={10} /> {c.phone} · {c.bills?.length || 0} orders</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {selected ? (
-        <div>
-          <div style={{ background: "#1a1310", borderRadius: 18, padding: 24, marginBottom: 20, display: "flex", alignItems: "center", gap: 20 }}>
-            <div style={{ width: 60, height: 60, borderRadius: "50%", background: "#f59e0b", display: "flex", alignItems: "center", justifyContent: "center", color: "#1a1310", fontSize: 26, fontWeight: 900 }}>
-              {selected.name ? selected.name[0].toUpperCase() : "?"}
-            </div>
-            <div>
-              <div style={{ fontSize: 20, fontWeight: 900, color: "#f59e0b" }}>{selected.name || "Unknown Customer"}</div>
-              <div style={{ fontSize: 13, color: "#c9b9a8" }}>{selected.phone}</div>
-              <div style={{ fontSize: 12, color: "#8a7e6e", marginTop: 4 }}>{selected.bills?.length || 0} total orders · Total spent: {formatINR(customerBills.reduce((s, b) => s + b.total, 0))}</div>
-            </div>
-          </div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 12 }}>Purchase History</div>
-          {customerBills.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "30px 0" }}>No bills found</div>}
-          {customerBills.map(b => (
-            <div key={b.id} style={{ background: "#fff", borderRadius: 14, border: "1px solid #e5e0d8", padding: 16, marginBottom: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>{b.id}</div>
-                  <div style={{ fontSize: 11, color: "#8a7e6e" }}>{formatDate(b.date)} {formatTime(b.date)}</div>
-                </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 15, fontWeight: 900, color: "#2563eb" }}>{formatINR(b.total)}</div>
-                  </div>
-                  <button onClick={() => repeatOrder(b)} style={{ padding: "7px 12px", borderRadius: 8, background: "#f59e0b", color: "#1a1310", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 800, display: "flex", gap: 5, alignItems: "center" }}>
-                    <Icon name="repeat" size={12} /> Repeat
-                  </button>
-                  <button onClick={() => printBill(b)} style={{ padding: "7px 10px", borderRadius: 8, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", fontSize: 12, color: "#4a3f35", display: "flex", gap: 4, alignItems: "center" }}>
-                    <Icon name="print" size={12} />
-                  </button>
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 6 }}>
-                {b.items?.map(i => (
-                  <div key={i.id} style={{ fontSize: 11, color: "#4a3f35", background: "#f8f5f0", borderRadius: 6, padding: "4px 8px" }}>
-                    {i.name} × {formatQty(i.qty, i.unit)} = <strong>{formatINR(i.total)}</strong>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 300, color: "#c9b9a8", fontSize: 15 }}>
-          Select a customer to view history
-        </div>
-      )}
     </div>
   );
 }

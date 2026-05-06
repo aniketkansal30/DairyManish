@@ -231,13 +231,16 @@ export default function App() {
       alert("❌ Wrong Password!");
       return;
     }
-    try {
-      await apiCall(`/bills/${id}`, "DELETE");
-      setBills((prev) => prev.filter((b) => b.id !== id));
-    } catch (e) {
-      alert("Bill delete karne mein error: " + e.message);
-    }
-  };
+    setBills((prev) => prev.filter((b) => b.id !== id));
+  try {
+    await apiCall(`/bills/${id}`, "DELETE");
+  } catch (e) {
+    // Agar error aaye toh wapas add karo
+    const bls = await apiCall("/bills");
+    setBills(bls);
+    alert("Bill delete karne mein error: " + e.message);
+  }
+};
 
   const handleDeleteAllBills = async () => {
     const pass = prompt("Admin Password Enter Karo:");

@@ -172,7 +172,7 @@ export default function App() {
         const updatedCustomers = await apiCall("/customers");
         setCustomers(updatedCustomers);
       }
-      printBill(bill);
+      printBill(saved);
       setCart([]);
       setCustomerForm({ name: "", phone: "" });
       setDiscount(0);

@@ -42,7 +42,20 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
       setLoading(true);
       try {
         const data = await apiCall(path);
-        setBills(data);
+        if (filter === "custom" || filter === "today" || filter === "yesterday") {
+          const dateStr = filter === "today"
+            ? new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
+            : filter === "yesterday"
+              ? new Date(Date.now() + 5.5 * 60 * 60 * 1000 - 86400000).toISOString().slice(0, 10)
+              : startDate;
+          const istFiltered = data.filter(b => {
+            const ist = new Date(new Date(b.date).getTime() + 5.5 * 60 * 60 * 1000);
+            return `${ist.getFullYear()}-${String(ist.getMonth() + 1).padStart(2, "0")}-${String(ist.getDate()).padStart(2, "0")}` === dateStr;
+          });
+          setBills(istFiltered);
+        } else {
+          setBills(data);
+        }
         setCache((prev) => ({ ...prev, [cacheKey]: { data, time: Date.now() } }));
       } catch (e) {
         console.error(e);
@@ -193,8 +206,8 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
             <input type="checkbox" checked={selected.includes(b.id)} onChange={() => toggleSelect(b.id)} style={{ width: 16, height: 16, cursor: "pointer", flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 140 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>
-  Token: {b.id?.slice(-3)}
-</div>
+                Token: {b.id?.slice(-3)}
+              </div>
               <div style={{ fontSize: 11, color: "#8a7e6e" }}>{formatDate(b.date)} · {formatTime(b.date)}</div>
             </div>
             {b.customer?.name && <div style={{ fontSize: 12, color: "#4a3f35" }}>👤 {b.customer.name}</div>}
@@ -213,11 +226,11 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
               <Icon name="print" size={12} /> Print
             </button>
             <button onClick={async () => {
-  if (window.confirm("Yeh bill delete karein?")) {
-    setBills((prev) => prev.filter((x) => x.id !== b.id));
-    await onDelete(b.id);
-  }
-}}
+              if (window.confirm("Yeh bill delete karein?")) {
+                setBills((prev) => prev.filter((x) => x.id !== b.id));
+                await onDelete(b.id);
+              }
+            }}
               style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fff", cursor: "pointer", fontSize: 11, color: "#ef4444", display: "flex", gap: 4, alignItems: "center" }}>
               <Icon name="trash" size={12} /> Delete
             </button>

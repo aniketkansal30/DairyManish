@@ -62,9 +62,12 @@ export default function Navbar({ view, setView, onLogout }) {
           zIndex: 99,
           display: "flex",
           alignItems: "center",
-          padding: "0 24px",
-          gap: 8,
+          padding: "0 12px",
+          gap: 6,
           boxShadow: "0 2px 12px rgba(0,0,0,0.18)",
+          overflowX: "auto",
+          width: "100%",
+          boxSizing: "border-box",
         }}
       >
         <div
@@ -104,7 +107,7 @@ export default function Navbar({ view, setView, onLogout }) {
           </div>
         </div>
         <div style={{ width: 1, height: 32, background: "#2d2420", marginRight: 8 }} />
-        <nav style={{ display: "flex", gap: 4, flex: 1 }}>
+        <nav style={{ display: "flex", gap: 2, flex: 1, overflowX: "auto" }}>
           {nav.map((n) => (
             <button
               key={n.id}
@@ -112,62 +115,63 @@ export default function Navbar({ view, setView, onLogout }) {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 7,
-                padding: "10px 16px",
+                gap: 4,
+                padding: "8px 10px",
                 borderRadius: 8,
                 border: "none",
                 cursor: "pointer",
-                fontSize: 13,
+                fontSize: 11,
                 fontWeight: view === n.id ? 800 : 500,
                 transition: "all 0.15s",
                 background: view === n.id ? "#f59e0b" : "transparent",
                 color: view === n.id ? "#1a1310" : "#c9b9a8",
+                flexShrink: 0,
+                whiteSpace: "nowrap",
               }}
             >
-              <Icon name={n.icon} size={15} />
+              <Icon name={n.icon} size={13} />
               {n.label}
             </button>
           ))}
         </nav>
-        <div style={{ fontSize: 12, color: "#8a7e6e", flexShrink: 0 }}>
+        <div style={{ fontSize: 11, color: "#8a7e6e", flexShrink: 0, display: window.innerWidth < 768 ? "none" : "block" }}>
           {new Date().toLocaleDateString("en-IN", {
-            weekday: "short",
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
+            weekday: "short", day: "2-digit", month: "short", year: "numeric",
           })}
         </div>
         <button
           onClick={() => setShowChangePwd(true)}
           style={{
-            marginLeft: 8,
-            padding: "8px 14px",
+            marginLeft: 4,
+            padding: "7px 10px",
             background: "#2563eb",
             color: "#fff",
             border: "none",
             borderRadius: 8,
             fontWeight: 700,
-            fontSize: 12,
+            fontSize: 11,
             cursor: "pointer",
+            flexShrink: 0,
           }}
         >
-          🔑 Password
+          🔑
         </button>
         <button
           onClick={onLogout}
           style={{
-            marginLeft: 6,
-            padding: "8px 16px",
+            marginLeft: 4,
+            padding: "7px 10px",
             background: "#ef4444",
             color: "#fff",
             border: "none",
             borderRadius: 8,
             fontWeight: 700,
-            fontSize: 12,
+            fontSize: 11,
             cursor: "pointer",
+            flexShrink: 0,
           }}
         >
-          Logout
+          Out
         </button>
       </div>
 

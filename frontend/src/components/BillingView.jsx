@@ -31,24 +31,16 @@ export default function BillingView({
   const [heldBills, setHeldBills] = useState(() => {
     try { return JSON.parse(localStorage.getItem("heldBills")) || []; } catch { return []; }
   });
-  const [holdCounter, setHoldCounter] = useState(() => {
-    try {
-      const held = JSON.parse(localStorage.getItem("heldBills")) || [];
-      const nums = held
-        .map(b => b.name?.match(/^Bill #(\d+)$/)?.[1])
-        .filter(Boolean)
-        .map(Number);
-      return nums.length ? Math.max(...nums) + 1 : 1;
-    } catch { return 1; }
-  });
+  const [holdCounter, setHoldCounter] = useState(1);
 
   const isMobile = window.innerWidth < 768;
 
   const holdBill = () => {
     if (!cart.length) return;
+    const existingHeld = heldBills.find((b) => b.name === (customerForm.name || `Bill #${holdCounter}`));
     const name = customerForm.name || `Bill #${holdCounter}`;
     const existingIndex = heldBills.findIndex((b) => b.name === name);
-    if (existingIndex === -1) setHoldCounter((prev) => prev + 1);
+    if (!existingHeld) setHoldCounter((prev) => prev + 1);
     setHeldBills((prev) => {
       const updated = existingIndex !== -1
         ? prev.map((b, i) => i === existingIndex ? { ...b, cart, customerForm, discount, paymentMode } : b)

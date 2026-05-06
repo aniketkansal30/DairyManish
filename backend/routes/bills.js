@@ -10,8 +10,8 @@ router.get("/", async (req, res) => {
     const filter = {};
 
     if (req.query.date) {
-  const start = new Date(req.query.date + "T00:00:00+05:30");  // 4 May 00:00 IST
-  const end = new Date(req.query.date + "T23:59:59+05:30");    // 4 May 23:59 IST
+  const start = new Date(req.query.date + "T00:00:00+05:30");
+  const end = new Date(req.query.date + "T23:59:59+05:30");
   filter.date = { $gte: start, $lte: end };
 }
     if (req.query.month) {

@@ -35,16 +35,18 @@ export function exportToExcel(data, filter = "export", overrideDate = null) {
 
   const rows = data.map((b) => {
     const ist = toIST(b.date);
-    const date = ist.toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" });
-    const time = ist.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }).toUpperCase();
+    const dd = String(ist.getDate()).padStart(2, "0");
+    const mm = String(ist.getMonth() + 1).padStart(2, "0");
+    const yyyy = ist.getFullYear();
+    const date = `${dd}/${mm}/${yyyy}`; const time = ist.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }).toUpperCase();
 
     const itemsStr = (b.items || [])
       .map((item) => {
         const qty = item.unit === "kg"
           ? item.qty < 1 ? `${Math.round(item.qty * 1000)}g` : `${+item.qty.toFixed(2)}kg`
           : item.unit === "litre"
-          ? item.qty < 1 ? `${Math.round(item.qty * 1000)}ml` : `${+item.qty.toFixed(2)}L`
-          : `x${item.qty}`;
+            ? item.qty < 1 ? `${Math.round(item.qty * 1000)}ml` : `${+item.qty.toFixed(2)}L`
+            : `x${item.qty}`;
         return `${item.name} ${qty}`;
       })
       .join(", ");
@@ -60,7 +62,7 @@ export function exportToExcel(data, filter = "export", overrideDate = null) {
   });
 
   const totalCash = rows.filter(r => r["Payment Mode"] === "CASH").reduce((s, r) => s + r["Bill Total (₹)"], 0);
-  const totalUpi  = rows.filter(r => r["Payment Mode"] === "UPI").reduce((s, r)  => s + r["Bill Total (₹)"], 0);
+  const totalUpi = rows.filter(r => r["Payment Mode"] === "UPI").reduce((s, r) => s + r["Bill Total (₹)"], 0);
   const grandTotal = rows.reduce((s, r) => s + r["Bill Total (₹)"], 0);
 
   // ✅ Summary ek row mein upar, phir blank, phir headings + data
@@ -87,13 +89,13 @@ export function exportToExcel(data, filter = "export", overrideDate = null) {
   const wb = XLSX.utils.book_new();
 
   // ✅ Filename fix — pehle bill ki IST date use karo
-   const fileDate = overrideDate
+  const fileDate = overrideDate
     ? overrideDate.split("-").reverse().join("-")
     : data[0]?.date
-    ? toIST(data[0].date)
+      ? toIST(data[0].date)
         .toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" })
         .replace(/\//g, "-")
-    : filter;
+      : filter;
 
   XLSX.utils.book_append_sheet(wb, ws, `Sales ${fileDate}`);
   XLSX.writeFile(wb, `Sales_${fileDate}.xlsx`);

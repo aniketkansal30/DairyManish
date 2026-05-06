@@ -89,13 +89,24 @@ export function exportToExcel(data, filter = "export", overrideDate = null) {
   const wb = XLSX.utils.book_new();
 
   // ✅ Filename fix — pehle bill ki IST date use karo
+  const getISTDateStr = (dateStr) => {
+    const ist = toIST(dateStr);
+    const dd = String(ist.getDate()).padStart(2, "0");
+    const mm = String(ist.getMonth() + 1).padStart(2, "0");
+    const yyyy = ist.getFullYear();
+    return `${dd}-${mm}-${yyyy}`;
+  };
+
+  const oldestDate = data.reduce((oldest, b) =>
+    new Date(b.date) < new Date(oldest.date) ? b : oldest
+    , data[0])?.date;
+
   const fileDate = overrideDate
     ? overrideDate.split("-").reverse().join("-")
-    : data[0]?.date
-      ? toIST(data[0].date)
-        .toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" })
-        .replace(/\//g, "-")
+    : oldestDate
+      ? getISTDateStr(oldestDate)
       : filter;
+
 
   XLSX.utils.book_append_sheet(wb, ws, `Sales ${fileDate}`);
   XLSX.writeFile(wb, `Sales_${fileDate}.xlsx`);

@@ -65,16 +65,15 @@ export default function App() {
     async function loadAll() {
       try {
         setLoading(true);
-        const [prods, bls, custs, cats] = await Promise.all([
+        const [prods, cats] = await Promise.all([
           apiCall("/products"),
-          apiCall("/bills?month=" + today().slice(0, 7)),
-          apiCall("/customers"),
           apiCall("/categories"),
         ]);
         setProducts(prods);
-        setBills(bls);
-        setCustomers(custs);
         setDbCats(cats);
+        // Bills aur customers background mein load karo
+        apiCall("/bills?month=" + today().slice(0, 7)).then(bls => setBills(bls)).catch(() => {});
+        apiCall("/customers").then(custs => setCustomers(custs)).catch(() => {});
       } catch (e) {
         setError(
           "Server se connect nahi ho paya. Backend chal raha hai? " + e.message
@@ -365,7 +364,7 @@ const loadBillIntoCart = (bill) => {
 
       <div
         style={{
-          padding: "24px",
+          padding: window.innerWidth < 768 ? "12px 8px" : "24px",
           maxWidth: 1400,
           margin: "0 auto",
           width: "100%",

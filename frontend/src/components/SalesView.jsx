@@ -14,22 +14,36 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState([]);
   const [payFilter, setPayFilter] = useState("ALL");
+  const [cache, setCache] = useState({});
 
   // ─── Fetch bills from backend ──────────────────────────────────────────────
   useEffect(() => {
     async function fetchBills() {
       let path = "/bills";
-      if (filter === "today") path = `/bills?date=${today()}`;
-      else if (filter === "yesterday") path = `/bills?date=${new Date(Date.now() - 86400000).toISOString().slice(0, 10)}`;
+      const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const yesterdayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000 - 86400000).toISOString().slice(0, 10);
+      if (filter === "today") path = `/bills?date=${todayIST}`;
+      else if (filter === "yesterday") path = `/bills?date=${yesterdayIST}`;
       else if (filter === "month") path = `/bills?month=${thisMonth()}`;
       else if (filter === "all") path = `/bills`;
       else if (filter === "custom" && startDate) path = `/bills?date=${startDate}&endDate=${endDate || startDate}`;
-      else return; // custom but no date selected yet
+      else return;
+
+      const cacheKey = path;
+
+      // Today ka cache 30 sec baad expire, baaki filters ka 5 min
+      const cacheTTL = filter === "today" ? 30000 : 300000;
+      const cached = cache[cacheKey];
+      if (cached && Date.now() - cached.time < cacheTTL) {
+        setBills(cached.data);
+        return;
+      }
 
       setLoading(true);
       try {
         const data = await apiCall(path);
         setBills(data);
+        setCache((prev) => ({ ...prev, [cacheKey]: { data, time: Date.now() } }));
       } catch (e) {
         console.error(e);
       } finally {
@@ -173,7 +187,7 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
             Koi bill nahi {labels[filter].toLowerCase()} mein
           </div>
         )}
-        {filtered.map((b, i) => (
+        {[...filtered].sort((a, b) => new Date(a.date) - new Date(b.date)).map((b, i) => (
           <div key={b.id}
             style={{ display: "flex", alignItems: "center", padding: isMobile ? "10px 12px" : "13px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: isMobile ? 8 : 16, flexWrap: "wrap", background: selected.includes(b.id) ? "#fff8ee" : "transparent" }}>
             <input type="checkbox" checked={selected.includes(b.id)} onChange={() => toggleSelect(b.id)} style={{ width: 16, height: 16, cursor: "pointer", flexShrink: 0 }} />

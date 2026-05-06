@@ -75,8 +75,11 @@ export function printBill(bill) {
   <br/>
   </body></html>`);
   w.document.close();
-  setTimeout(() => {
+  w.onload = () => {
     w.print();
     w.close();
-  }, 500);
+  };
+  setTimeout(() => {
+    if (!w.closed) { w.print(); w.close(); }
+  }, 800);
 }

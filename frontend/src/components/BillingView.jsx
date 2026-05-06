@@ -40,11 +40,13 @@ export default function BillingView({
 
   const holdBill = () => {
     if (!cart.length) return;
-    const existingHeld = heldBills.find((b) => b.name === (customerForm.name || `Bill #${holdCounter}`));
     const name = customerForm.name || `Bill #${holdCounter}`;
-    if (!existingHeld) setHoldCounter((prev) => prev + 1);
+    const existingIndex = heldBills.findIndex((b) => b.name === name);
+    if (existingIndex === -1) setHoldCounter((prev) => prev + 1);
     setHeldBills((prev) => {
-      const updated = [...prev, { name, cart, customerForm, discount, paymentMode }];
+      const updated = existingIndex !== -1
+        ? prev.map((b, i) => i === existingIndex ? { ...b, cart, customerForm, discount, paymentMode } : b)
+        : [...prev, { name, cart, customerForm, discount, paymentMode }];
       localStorage.setItem("heldBills", JSON.stringify(updated));
       return updated;
     });
@@ -162,7 +164,7 @@ export default function BillingView({
 
   const isMobile = window.innerWidth < 768;
   return (
-    <div style={{ display: isMobile ? "flex" : "grid", flexDirection: isMobile ? "column" : undefined, gridTemplateColumns: isMobile ? undefined : "1fr 420px", gap: isMobile ? 12 : 20, alignItems: "start" }}>
+    <div style={{ display: isMobile ? "flex" : "grid", flexDirection: isMobile ? "column" : undefined, gridTemplateColumns: isMobile ? undefined : "1fr 420px", gap: isMobile ? 8 : 20, alignItems: "start", maxWidth: "100%", overflowX: "hidden" }}>
       {/* Left: Category sidebar + product grid */}
       <div style={{ display: "flex", gap: 16 }}>
         {/* Category sidebar */}
@@ -176,7 +178,8 @@ export default function BillingView({
             maxHeight: isMobile ? "none" : "calc(100vh - 140px)",
             overflowX: isMobile ? "auto" : "hidden",
             overflowY: isMobile ? "hidden" : "auto",
-            paddingBottom: isMobile ? 4 : 0,
+            paddingBottom: isMobile ? 6 : 0,
+            WebkitOverflowScrolling: "touch",
           }}
         >
           {CATEGORY_LIST.map((c) => (
@@ -189,9 +192,11 @@ export default function BillingView({
                 alignItems: "center",
                 justifyContent: "center",
                 gap: 2,
-                padding: isMobile ? "6px 10px" : "6px 4px",
+                padding: isMobile ? "5px 8px" : "6px 4px",
                 borderRadius: 10,
                 flexShrink: isMobile ? 0 : undefined,
+                minWidth: isMobile ? 56 : undefined,
+                fontSize: isMobile ? 9 : 11,
                 border: "2px solid",
                 borderColor: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#e5e0d8",
                 background: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#fff",
@@ -231,7 +236,7 @@ export default function BillingView({
               }}
             />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(auto-fill, minmax(100px, 1fr))" : "repeat(auto-fill, minmax(130px, 1fr))", gap: isMobile ? 8 : 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fill, minmax(130px, 1fr))", gap: isMobile ? 8 : 12 }}>
             {sortedFiltered.map((p) => {
               const inCart = cart.find((i) => i.id === p.id);
               return (
@@ -291,6 +296,7 @@ export default function BillingView({
           display: "flex",
           flexDirection: "column",
           maxHeight: isMobile ? "none" : "calc(100vh - 100px)",
+          width: isMobile ? "100%" : undefined,
         }}
       >
         {/* Header */}

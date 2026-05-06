@@ -139,7 +139,7 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
             🗑️ Delete All
           </button>
         </div>
-        <button onClick={() => exportToExcel(filtered, filter)} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid #16a34a", background: "#f0fdf4", color: "#16a34a" }}>
+        <button onClick={() => exportToExcel(filtered, filter, filter === "custom" ? startDate : null)} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid #16a34a", background: "#f0fdf4", color: "#16a34a" }}>
           📊 Export Excel
         </button>
       </div>

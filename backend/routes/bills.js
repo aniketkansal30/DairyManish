@@ -16,9 +16,9 @@ router.get("/", async (req, res) => {
 }
     if (req.query.month) {
       const [year, month] = req.query.month.split("-").map(Number);
-      const start = new Date(year, month - 1, 1);
-      const end = new Date(year, month, 1);
-      filter.date = { $gte: start, $lt: end };
+      const start = new Date(`${year}-${String(month).padStart(2,"0")}-01T00:00:00+05:30`);
+      const end   = new Date(`${year}-${String(month).padStart(2,"0")}-${new Date(year, month, 0).getDate()}T23:59:59+05:30`);
+      filter.date = { $gte: start, $lte: end };
     }
 
     if (req.query.phone) {
@@ -147,7 +147,8 @@ router.get("/analytics", async (req, res) => {
 
     const dailyMap = {};
     bills.forEach((b) => {
-      const day = b.date.toISOString().slice(0, 10);
+      const istDate = new Date(b.date.getTime() + 5.5 * 60 * 60 * 1000);
+      const day = istDate.toISOString().slice(0, 10);
       if (!dailyMap[day]) dailyMap[day] = { date: day, revenue: 0, profit: 0, bills: 0 };
 
       // ✅ direct use karo (NO discount here)

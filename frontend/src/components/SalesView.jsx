@@ -80,12 +80,13 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
     setSelected([]);
   };
 
+  const isMobile = window.innerWidth < 768;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 12 : 20, padding: isMobile ? "0 4px" : 0 }}>
       {/* Header + filters */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div style={{ fontSize: 20, fontWeight: 900, color: "#1a1310" }}>💰 Sales Overview</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: isMobile ? "center" : "flex-start" }}>
           {["today", "yesterday", "month", "all"].map((f) => (
             <button key={f} onClick={() => setFilter(f)}
               style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid", borderColor: filter === f ? "#f59e0b" : "#e5e0d8", background: filter === f ? "#f59e0b" : "#fff", color: filter === f ? "#1a1310" : "#8a7e6e" }}>
@@ -130,24 +131,24 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
       </div>
 
       {/* KPI cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(auto-fill, minmax(200px, 1fr))", gap: isMobile ? 10 : 16 }}>
         {[
           { label: "Total Sales", value: formatINR(totalSales), color: "#2563eb", icon: "💳", sub: `${filtered.length} bills` },
           { label: "Total Profit", value: "₹0.00", color: "#16a34a", icon: "📈", sub: "" },
           { label: "Discount Given", value: formatINR(totalDiscount), color: "#f59e0b", icon: "🏷️", sub: `${filtered.filter((b) => b.discountPct > 0).length} discounted bills` },
           { label: "Avg Bill Value", value: filtered.length ? formatINR(totalSales / filtered.length) : "₹0.00", color: "#7c3aed", icon: "🧾", sub: "per bill" },
         ].map((k) => (
-          <div key={k.label} style={{ background: "#fff", borderRadius: 16, padding: "20px", border: "1px solid #e5e0d8" }}>
-            <div style={{ fontSize: 22, marginBottom: 6 }}>{k.icon}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>{k.label}</div>
-            <div style={{ fontSize: 24, fontWeight: 900, color: k.color, marginBottom: 2 }}>{k.value}</div>
-            <div style={{ fontSize: 12, color: "#8a7e6e" }}>{k.sub}</div>
+          <div key={k.label} style={{ background: "#fff", borderRadius: 16, padding: isMobile ? "14px" : "20px", border: "1px solid #e5e0d8" }}>
+            <div style={{ fontSize: isMobile ? 18 : 22, marginBottom: 4 }}>{k.icon}</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#8a7e6e", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>{k.label}</div>
+            <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 900, color: k.color, marginBottom: 2 }}>{k.value}</div>
+            <div style={{ fontSize: 11, color: "#8a7e6e" }}>{k.sub}</div>
           </div>
         ))}
       </div>
 
       {/* Cash / UPI split */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 10 : 16 }}>
         {[
           { label: "Cash Sales", value: formatINR(filtered.filter((b) => (b.paymentMode || "CASH") === "CASH").reduce((s, b) => s + b.total, 0)), color: "#16a34a", icon: "💵", sub: `${filtered.filter((b) => (b.paymentMode || "CASH") === "CASH").length} bills` },
           { label: "UPI Sales", value: formatINR(filtered.filter((b) => b.paymentMode === "UPI").reduce((s, b) => s + b.total, 0)), color: "#2563eb", icon: "📲", sub: `${filtered.filter((b) => b.paymentMode === "UPI").length} bills` },
@@ -174,7 +175,7 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
         )}
         {filtered.map((b, i) => (
           <div key={b.id}
-            style={{ display: "flex", alignItems: "center", padding: "13px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: 16, flexWrap: "wrap", background: selected.includes(b.id) ? "#fff8ee" : "transparent" }}>
+            style={{ display: "flex", alignItems: "center", padding: isMobile ? "10px 12px" : "13px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: isMobile ? 8 : 16, flexWrap: "wrap", background: selected.includes(b.id) ? "#fff8ee" : "transparent" }}>
             <input type="checkbox" checked={selected.includes(b.id)} onChange={() => toggleSelect(b.id)} style={{ width: 16, height: 16, cursor: "pointer", flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 140 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>

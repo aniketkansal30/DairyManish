@@ -28,18 +28,26 @@ export default function BillingView({
   editingBillId, onCancelEdit,
 }) {
   const [popup, setPopup] = useState(null);
+  const [isPrinting, setIsPrinting] = useState(false);
   const [paymentMode, setPaymentMode] = useState("CASH");
-  const [heldBills, setHeldBills] = useState([]);
+  const [splitMode, setSplitMode] = useState(false);
+  const [cashAmt, setCashAmt] = useState("");
+  const [upiAmt, setUpiAmt] = useState("");
+  const [heldBills, setHeldBills] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("heldBills")) || []; } catch { return []; }
+  });
   const [holdCounter, setHoldCounter] = useState(1);
 
   const holdBill = () => {
     if (!cart.length) return;
+    const existingHeld = heldBills.find((b) => b.name === (customerForm.name || `Bill #${holdCounter}`));
     const name = customerForm.name || `Bill #${holdCounter}`;
-    setHoldCounter((prev) => prev + 1);
-    setHeldBills((prev) => [
-      ...prev,
-      { name, cart, customerForm, discount, paymentMode },
-    ]);
+    if (!existingHeld) setHoldCounter((prev) => prev + 1);
+    setHeldBills((prev) => {
+      const updated = [...prev, { name, cart, customerForm, discount, paymentMode }];
+      localStorage.setItem("heldBills", JSON.stringify(updated));
+      return updated;
+    });
     setCart([]);
     setCustomerForm({ name: "", phone: "" });
     setDiscount(0);
@@ -52,7 +60,11 @@ export default function BillingView({
     setCustomerForm(held.customerForm);
     setDiscount(held.discount);
     setPaymentMode(held.paymentMode);
-    setHeldBills((prev) => prev.filter((_, i) => i !== index));
+    setHeldBills((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      localStorage.setItem("heldBills", JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const popularIds = useMemo(() => {
@@ -90,7 +102,7 @@ export default function BillingView({
         ? existing.qty
         : product.unit === "piece"
           ? 1
-          : 0.5,
+          : 0,
       tempAmt: "",
       selectedVariation: product.hasVariation
         ? existing?.selectedVariation || null
@@ -148,20 +160,23 @@ export default function BillingView({
     "Amul", "Snacks", "Tandoor", "Cookies", "Dry Fruit Thal", "Other", "Gravy Items",
   ];
 
+  const isMobile = window.innerWidth < 768;
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 480px", gap: 20, alignItems: "start" }}>
+    <div style={{ display: isMobile ? "flex" : "grid", flexDirection: isMobile ? "column" : undefined, gridTemplateColumns: isMobile ? undefined : "1fr 420px", gap: isMobile ? 12 : 20, alignItems: "start" }}>
       {/* Left: Category sidebar + product grid */}
       <div style={{ display: "flex", gap: 16 }}>
         {/* Category sidebar */}
         <div
           style={{
             display: "flex",
-            flexDirection: "column",
-            gap: 3,
-            width: 90,
+            flexDirection: isMobile ? "row" : "column",
+            gap: 4,
+            width: isMobile ? "100%" : 110,
             flexShrink: 0,
-            maxHeight: "calc(100vh - 160px)",
-            overflowY: "auto",
+            maxHeight: isMobile ? "none" : "calc(100vh - 140px)",
+            overflowX: isMobile ? "auto" : "hidden",
+            overflowY: isMobile ? "hidden" : "auto",
+            paddingBottom: isMobile ? 4 : 0,
           }}
         >
           {CATEGORY_LIST.map((c) => (
@@ -174,13 +189,14 @@ export default function BillingView({
                 alignItems: "center",
                 justifyContent: "center",
                 gap: 2,
-                padding: "6px 4px",
+                padding: isMobile ? "6px 10px" : "6px 4px",
                 borderRadius: 10,
+                flexShrink: isMobile ? 0 : undefined,
                 border: "2px solid",
                 borderColor: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#e5e0d8",
                 background: category === c ? (CAT_COLORS[c] || "#f59e0b") : "#fff",
                 color: category === c ? "#fff" : "#4a3f35",
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: category === c ? 800 : 500,
                 cursor: "pointer",
                 transition: "all 0.15s",
@@ -215,7 +231,7 @@ export default function BillingView({
               }}
             />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(auto-fill, minmax(100px, 1fr))" : "repeat(auto-fill, minmax(130px, 1fr))", gap: isMobile ? 8 : 12 }}>
             {sortedFiltered.map((p) => {
               const inCart = cart.find((i) => i.id === p.id);
               return (
@@ -234,13 +250,13 @@ export default function BillingView({
                     boxShadow: inCart ? `0 0 0 3px ${CAT_COLORS[p.category]}22` : "none",
                   }}
                 >
-                  {popularIds.includes(p.id) && !inCart && (
+                  {false && !inCart && (
                     <div style={{ position: "absolute", top: 8, right: 8, background: "#f59e0b", color: "#1a1310", borderRadius: 999, fontSize: 9, fontWeight: 800, padding: "2px 6px" }}>
                       ⭐ TOP
                     </div>
                   )}
                   {inCart && (
-                    <div style={{ position: "absolute", top: 8, right: 8, background: CAT_COLORS[p.category] || "#f59e0b", color: "#fff", borderRadius: 999, fontSize: 10, fontWeight: 800, padding: "2px 7px" }}>
+                    <div style={{ position: "absolute", top: 8, right: 8, background: CAT_COLORS[p.category] || "#f59e0b", color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 800, padding: "2px 7px" }}>
                       ×{formatQty(inCart.qty, inCart.unit)}
                     </div>
                   )}
@@ -249,7 +265,7 @@ export default function BillingView({
                   <div style={{ fontSize: 12, color: "#8a7e6e", marginBottom: 6 }}>{p.category}</div>
                   <div style={{ fontSize: 16, fontWeight: 900, color: CAT_COLORS[p.category] || "#f59e0b" }}>
                     ₹{p.price}
-                    <span style={{ fontSize: 10, fontWeight: 500, color: "#8a7e6e" }}>/{p.unit}</span>
+                    <span style={{ fontSize: 11, fontWeight: 500, color: "#8a7e6e" }}>/{p.unit}</span>
                   </div>
                 </button>
               );
@@ -270,11 +286,11 @@ export default function BillingView({
           borderRadius: 18,
           border: "1px solid #e5e0d8",
           overflow: "hidden",
-          position: "sticky",
-          top: 80,
+          position: isMobile ? "relative" : "sticky",
+          top: isMobile ? 0 : 80,
           display: "flex",
           flexDirection: "column",
-          maxHeight: "calc(100vh - 100px)",
+          maxHeight: isMobile ? "none" : "calc(100vh - 100px)",
         }}
       >
         {/* Header */}
@@ -290,7 +306,7 @@ export default function BillingView({
         {editingBillId && (
           <div style={{ padding: "8px 12px", background: "#fef3c7", borderBottom: "1px solid #f59e0b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 11, fontWeight: 800, color: "#92400e" }}>✏️ EDITING: {editingBillId}</span>
-            <button onClick={onCancelEdit} style={{ fontSize: 10, color: "#ef4444", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>✕ Cancel</button>
+            <button onClick={onCancelEdit} style={{ fontSize: 11, color: "#ef4444", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>✕ Cancel</button>
           </div>
         )}
           {heldBills.length > 0 && (
@@ -393,28 +409,69 @@ export default function BillingView({
         {cart.length > 0 && (
           <div style={{ padding: "16px 18px", borderTop: "2px dashed #e5e0d8", flexShrink: 0 }}>
             {/* Payment mode */}
-            <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
               {["CASH", "UPI"].map((mode) => (
                 <button
                   key={mode}
-                  onClick={() => setPaymentMode(mode)}
+                  onClick={() => { setPaymentMode(mode); setSplitMode(false); }}
                   style={{
                     flex: 1,
-                    padding: "12px",
+                    padding: "10px",
                     borderRadius: 12,
                     border: "2px solid",
-                    borderColor: paymentMode === mode ? "#f59e0b" : "#e5e0d8",
-                    background: paymentMode === mode ? "#1a1310" : "#fff",
-                    color: paymentMode === mode ? "#f59e0b" : "#8a7e6e",
+                    borderColor: !splitMode && paymentMode === mode ? "#f59e0b" : "#e5e0d8",
+                    background: !splitMode && paymentMode === mode ? "#1a1310" : "#fff",
+                    color: !splitMode && paymentMode === mode ? "#f59e0b" : "#8a7e6e",
                     fontWeight: 800,
-                    fontSize: 15,
+                    fontSize: 14,
                     cursor: "pointer",
                   }}
                 >
                   {mode === "CASH" ? "💵 CASH" : "📲 UPI"}
                 </button>
               ))}
+              <button
+                onClick={() => { setSplitMode(true); setCashAmt(""); setUpiAmt(""); }}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  borderRadius: 12,
+                  border: "2px solid",
+                  borderColor: splitMode ? "#8b5cf6" : "#e5e0d8",
+                  background: splitMode ? "#8b5cf6" : "#fff",
+                  color: splitMode ? "#fff" : "#8a7e6e",
+                  fontWeight: 800,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                ✂️ SPLIT
+              </button>
             </div>
+            {splitMode && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", marginBottom: 4 }}>💵 CASH</div>
+                  <input
+                    type="number"
+                    value={cashAmt}
+                    onChange={(e) => { setCashAmt(e.target.value); setUpiAmt(Math.max(0, cartTotal - +e.target.value)); }}
+                    placeholder="0"
+                    style={{ width: "100%", padding: "8px 10px", border: "2px solid #f59e0b", borderRadius: 10, fontSize: 15, fontWeight: 800, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", marginBottom: 4 }}>📲 UPI</div>
+                  <input
+                    type="number"
+                    value={upiAmt}
+                    onChange={(e) => { setUpiAmt(e.target.value); setCashAmt(Math.max(0, cartTotal - +e.target.value)); }}
+                    placeholder="0"
+                    style={{ width: "100%", padding: "8px 10px", border: "2px solid #8b5cf6", borderRadius: 10, fontSize: 15, fontWeight: 800, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Totals */}
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#8a7e6e", marginBottom: 4 }}>
@@ -441,10 +498,16 @@ export default function BillingView({
                 ⏸️ Hold
               </button>
               <button
-                onClick={() => { checkoutBill(paymentMode); setPaymentMode("CASH"); }}
+                onClick={() => {
+                  if (isPrinting) return;
+                  setIsPrinting(true);
+                  checkoutBill(splitMode ? `SPLIT(Cash:${cashAmt||0} UPI:${upiAmt||0})` : paymentMode);
+                  setPaymentMode("CASH");
+                  setTimeout(() => setIsPrinting(false), 5000);
+                }}
                 style={{ flex: 1, height: 50, borderRadius: 12, background: "#1a1310", color: "#f59e0b", border: "none", fontWeight: 800, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
               >
-                <Icon name="print" size={15} /> {editingBillId ? "💾 Update Bill" : "Print & Save"}
+                <Icon name="print" size={15} /> {isPrinting ? "⏳ Printing..." : editingBillId ? "💾 Update Bill" : "Print & Save"}
               </button>
             </div>
 

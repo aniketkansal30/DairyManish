@@ -197,7 +197,12 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
               style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", fontSize: 11, color: "#4a3f35", display: "flex", gap: 4, alignItems: "center" }}>
               <Icon name="print" size={12} /> Print
             </button>
-            <button onClick={() => { if (window.confirm("Yeh bill delete karein?")) onDelete(b.id); }}
+            <button onClick={async () => {
+  if (window.confirm("Yeh bill delete karein?")) {
+    setBills((prev) => prev.filter((x) => x.id !== b.id));
+    await onDelete(b.id);
+  }
+}}
               style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fff", cursor: "pointer", fontSize: 11, color: "#ef4444", display: "flex", gap: 4, alignItems: "center" }}>
               <Icon name="trash" size={12} /> Delete
             </button>

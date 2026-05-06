@@ -42,20 +42,21 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
       setLoading(true);
       try {
         const data = await apiCall(path);
-        let finalBills = data;
         if (filter === "custom" || filter === "today" || filter === "yesterday") {
           const dateStr = filter === "today"
             ? new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
             : filter === "yesterday"
               ? new Date(Date.now() + 5.5 * 60 * 60 * 1000 - 86400000).toISOString().slice(0, 10)
               : startDate;
-          finalBills = data.filter(b => {
+          const istFiltered = data.filter(b => {
             const ist = new Date(new Date(b.date).getTime() + 5.5 * 60 * 60 * 1000);
             return `${ist.getFullYear()}-${String(ist.getMonth() + 1).padStart(2, "0")}-${String(ist.getDate()).padStart(2, "0")}` === dateStr;
           });
+          setBills(istFiltered);
+        } else {
+          setBills(data);
         }
-        setBills(finalBills);
-        setCache((prev) => ({ ...prev, [cacheKey]: { data: finalBills, time: Date.now() } }));
+        setCache((prev) => ({ ...prev, [cacheKey]: { data, time: Date.now() } }));
       } catch (e) {
         console.error(e);
       } finally {

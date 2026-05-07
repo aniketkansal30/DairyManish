@@ -6,11 +6,17 @@ import { useState } from "react";
 
 // ─── ANALYTICS VIEW ───────────────────────────────────────────────────────────
 export default function AnalyticsView({ bills }) {
-  const [selectedDate, setSelectedDate] = useState(today());
-
+  const [selectedDate, setSelectedDate] = useState(
+  new Date().toLocaleDateString("en-CA")
+);
   const filteredBills = selectedDate
-    ? bills.filter((b) => b.date?.slice(0, 10) === selectedDate)
-    : bills;
+  ? bills.filter((b) => {
+      const billDate = b.date
+        ? new Date(b.date).toLocaleDateString("en-CA")
+        : "";
+      return billDate === selectedDate;
+    })
+  : bills;
 
   const filteredItemMap = {};
   filteredBills.forEach((b) =>

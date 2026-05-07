@@ -13,11 +13,11 @@ export function formatTime(d) {
 }
 
 export function today() {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local IST
 }
 
 export function thisMonth() {
-  return new Date().toISOString().slice(0, 7);
+  return new Date().toLocaleDateString("en-CA").slice(0, 7); // YYYY-MM in local IST
 }
 
 

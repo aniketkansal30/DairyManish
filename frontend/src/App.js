@@ -39,11 +39,19 @@ export default function App() {
           }
         }
       }
+      
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, []);
-
+useEffect(() => {
+  const API = process.env.REACT_APP_API_URL?.replace("/api", "");
+  fetch(API + "/health").catch(() => {});
+  const ping = setInterval(() => {
+    fetch(API + "/health").catch(() => {});
+  }, 14 * 60 * 1000);
+  return () => clearInterval(ping);
+}, []);
   // ─── DATA STATE ─────────────────────────────────────────────────────────────
   const [products, setProducts] = useState([]);
   const [bills, setBills] = useState([]);
@@ -72,7 +80,8 @@ export default function App() {
         setProducts(prods);
         setDbCats(cats);
         // Bills aur customers background mein load karo
-        apiCall("/bills?month=" + today().slice(0, 7)).then(bls => setBills(bls)).catch(() => {});
+       const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+apiCall("/bills?date=" + todayIST).then(bls => setBills(bls)).catch(() => {});
         apiCall("/customers").then(custs => setCustomers(custs)).catch(() => {});
       } catch (e) {
         setError(

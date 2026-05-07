@@ -41,27 +41,26 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
 
       setLoading(true);
       try {
-        const data = await apiCall(path);
-        if (filter === "custom" || filter === "today" || filter === "yesterday") {
-          const dateStr = filter === "today"
-            ? new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
-            : filter === "yesterday"
-              ? new Date(Date.now() + 5.5 * 60 * 60 * 1000 - 86400000).toISOString().slice(0, 10)
-              : startDate;
-          const istFiltered = data.filter(b => {
-            const ist = new Date(new Date(b.date).getTime() + 5.5 * 60 * 60 * 1000);
-            return `${ist.getFullYear()}-${String(ist.getMonth() + 1).padStart(2, "0")}-${String(ist.getDate()).padStart(2, "0")}` === dateStr;
-          });
-          setBills(istFiltered);
-        } else {
-          setBills(data);
-        }
-        setCache((prev) => ({ ...prev, [cacheKey]: { data, time: Date.now() } }));
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
+  const data = await apiCall(path);
+  if (filter === "today" || filter === "yesterday") {
+    const dateStr = filter === "today"
+      ? new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      : new Date(Date.now() + 5.5 * 60 * 60 * 1000 - 86400000).toISOString().slice(0, 10);
+    const istFiltered = data.filter(b => {
+      const ist = new Date(new Date(b.date).getTime() + 5.5 * 60 * 60 * 1000);
+      return `${ist.getFullYear()}-${String(ist.getMonth() + 1).padStart(2, "0")}-${String(ist.getDate()).padStart(2, "0")}` === dateStr;
+    });
+    setBills(istFiltered);
+  } else {
+    // custom, month, all — backend se jo aaya seedha set karo
+    setBills(data);
+  }
+  setCache((prev) => ({ ...prev, [cacheKey]: { data, time: Date.now() } }));
+} catch (e) {
+  console.error(e);
+} finally {
+  setLoading(false);
+} 
     }
     fetchBills();
   }, [filter, startDate, endDate]);
@@ -152,7 +151,7 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
             🗑️ Delete All
           </button>
         </div>
-        <button onClick={() => exportToExcel(filtered, filter, filter === "custom" ? startDate : null)} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid #16a34a", background: "#f0fdf4", color: "#16a34a" }}>
+        <button onClick={() => exportToExcel(filtered, filter, filter === "custom" ? (startDate === endDate || !endDate ? startDate : `${startDate}_${endDate}`) : null)} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid #16a34a", background: "#f0fdf4", color: "#16a34a" }}>
           📊 Export Excel
         </button>
       </div>
@@ -200,7 +199,7 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
             Koi bill nahi {labels[filter].toLowerCase()} mein
           </div>
         )}
-        {[...filtered].sort((a, b) => new Date(a.date) - new Date(b.date)).map((b, i) => (
+        {[...filtered].sort((a, b) => new Date(b.date) - new Date(a.date)).map((b, i) => (
           <div key={b.id}
             style={{ display: "flex", alignItems: "center", padding: isMobile ? "10px 12px" : "13px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: isMobile ? 8 : 16, flexWrap: "wrap", background: selected.includes(b.id) ? "#fff8ee" : "transparent" }}>
             <input type="checkbox" checked={selected.includes(b.id)} onChange={() => toggleSelect(b.id)} style={{ width: 16, height: 16, cursor: "pointer", flexShrink: 0 }} />

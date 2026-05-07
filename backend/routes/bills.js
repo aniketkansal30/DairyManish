@@ -9,7 +9,14 @@ router.get("/", async (req, res) => {
   try {
     const filter = {};
 
-    if (req.query.date) {
+    // NAYA
+if (req.query.date && req.query.endDate) {
+  // Date range — custom filter
+  const start = new Date(req.query.date + "T00:00:00+05:30");
+  const end = new Date(req.query.endDate + "T23:59:59+05:30");
+  filter.date = { $gte: start, $lte: end };
+} else if (req.query.date) {
+  // Single date
   const start = new Date(req.query.date + "T00:00:00+05:30");
   const end = new Date(req.query.date + "T23:59:59+05:30");
   filter.date = { $gte: start, $lte: end };
@@ -25,8 +32,7 @@ router.get("/", async (req, res) => {
       filter["customer.phone"] = req.query.phone;
     }
 
-   const limitVal = (req.query.date || req.query.month || req.query.phone) ? 0 : 500;
-const bills = await Bill.find(filter).sort({ date: -1 }).limit(limitVal);
+   const bills = await Bill.find(filter).sort({ date: -1 });
 
     res.json(bills); // ✅ BAS YEHI
   } catch (err) {

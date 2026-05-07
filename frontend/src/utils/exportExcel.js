@@ -1,113 +1,55 @@
-import { API } from "./constants";
 import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import { formatDate, formatTime, today } from "./helpers";
 
-// ─── API HELPER ───────────────────────────────────────────────────────────────
-export async function apiCall(path, method = "GET", body = null) {
-  const token = localStorage.getItem("dairy_token");
-  const opts = {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  };
-
-  if (body) opts.body = JSON.stringify(body);
-
-  const res = await fetch(`${API}${path}`, opts);
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Server error" }));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
-
-  return res.json();
+function formatItems(items) {
+  return items.map((i) => {
+    const qty = i.unit === "kg" || i.unit === "litre"
+      ? `${i.qty * 1000}ml`.replace("000ml", "L").replace(/(\d+)ml/, (_, n) => n >= 1000 ? `${n/1000}L` : `${n}ml`)
+      : `x${i.qty}`;
+    return `${i.name} ${qty}`;
+  }).join(", ");
 }
 
-// ─── EXPORT TO EXCEL ──────────────────────────────────────────────────────────
-export function exportToExcel(data, filter = "export", overrideDate = null) {
-  if (!data || data.length === 0) {
-    alert("Export ke liye koi data nahi hai.");
-    return;
-  }
+export function exportToExcel(bills, filterLabel) {
+ const totalCash = Math.round(bills.filter((b) => (b.paymentMode || "CASH") === "CASH").reduce((s, b) => s + b.total, 0));
+const totalUPI  = Math.round(bills.filter((b) => b.paymentMode === "UPI").reduce((s, b) => s + b.total, 0));
+const grandTotal = Math.round(bills.reduce((s, b) => s + b.total, 0));
 
-  const toIST = (dateStr) => new Date(new Date(dateStr).getTime() + 5.5 * 60 * 60 * 1000);
 
-  const rows = data.map((b) => {
-    const ist = toIST(b.date);
-    const dd = String(ist.getDate()).padStart(2, "0");
-    const mm = String(ist.getMonth() + 1).padStart(2, "0");
-    const yyyy = ist.getFullYear();
-    const date = `${dd}/${mm}/${yyyy}`; const time = ist.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }).toUpperCase();
-
-    const itemsStr = (b.items || [])
-      .map((item) => {
-        const qty = item.unit === "kg"
-          ? item.qty < 1 ? `${Math.round(item.qty * 1000)}g` : `${+item.qty.toFixed(2)}kg`
-          : item.unit === "litre"
-            ? item.qty < 1 ? `${Math.round(item.qty * 1000)}ml` : `${+item.qty.toFixed(2)}L`
-            : `x${item.qty}`;
-        return `${item.name} ${qty}`;
-      })
-      .join(", ");
-
-    return {
-      "Token ID": `#${String(b.id).slice(-3)}`,   // ✅ #602 format
-      "Date": date,
-      "Time": time,
-      "Items": itemsStr,
-      "Bill Total (₹)": Math.round(b.total),
-      "Payment Mode": b.paymentMode || "CASH",
-    };
-  });
-
-  const totalCash = rows.filter(r => r["Payment Mode"] === "CASH").reduce((s, r) => s + r["Bill Total (₹)"], 0);
-  const totalUpi = rows.filter(r => r["Payment Mode"] === "UPI").reduce((s, r) => s + r["Bill Total (₹)"], 0);
-  const grandTotal = rows.reduce((s, r) => s + r["Bill Total (₹)"], 0);
-
-  // ✅ Summary ek row mein upar, phir blank, phir headings + data
+  // Row 1: Summary
   const summaryRow = {
-    "Token ID": `Total Bills: ${rows.length}`,
+    "Token ID": `Total Bills: ${bills.length}`,
     "Date": `Cash: ₹${totalCash}`,
-    "Time": `UPI: ₹${totalUpi}`,
+    "Time": `UPI: ₹${totalUPI}`,
     "Items": `Grand Total: ₹${grandTotal}`,
     "Bill Total (₹)": "",
     "Payment Mode": "",
   };
 
-  const ws = XLSX.utils.json_to_sheet([summaryRow, {}, ...rows]);
+  // Bill rows
+  const rows = bills.map((b) => ({
+    "Token ID": `#${b.id?.slice(-3)}`,
+    "Date": formatDate(b.date),
+    "Time": formatTime(b.date),
+    "Items": formatItems(b.items || []),
+   "Bill Total (₹)": Math.round(b.total),
+    "Payment Mode": b.paymentMode || "CASH",
+  }));
 
+  const ws = XLSX.utils.json_to_sheet([summaryRow, ...rows]);
   ws["!cols"] = [
-    { wch: 10 }, // Token ID — #602 format, chhota
-    { wch: 13 }, // Date
-    { wch: 11 }, // Time
-    { wch: 42 }, // Items
-    { wch: 14 }, // Bill Total
-    { wch: 14 }, // Payment Mode
+    { wch: 14 }, { wch: 14 }, { wch: 10 },
+    { wch: 50 }, { wch: 14 }, { wch: 12 },
   ];
 
   const wb = XLSX.utils.book_new();
+  const sheetName = `Sales ${filterLabel}`;
+  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
 
-  // ✅ Filename fix — pehle bill ki IST date use karo
-  const getISTDateStr = (dateStr) => {
-    const ist = toIST(dateStr);
-    const dd = String(ist.getDate()).padStart(2, "0");
-    const mm = String(ist.getMonth() + 1).padStart(2, "0");
-    const yyyy = ist.getFullYear();
-    return `${dd}-${mm}-${yyyy}`;
-  };
-
-  const oldestDate = data.reduce((oldest, b) =>
-    new Date(b.date) < new Date(oldest.date) ? b : oldest
-    , data[0])?.date;
-
-  const fileDate = overrideDate
-    ? overrideDate.split("-").reverse().join("-")
-    : oldestDate
-      ? getISTDateStr(oldestDate)
-      : filter;
-
-
-  XLSX.utils.book_append_sheet(wb, ws, `Sales ${fileDate}`);
-  XLSX.writeFile(wb, `Sales_${fileDate}.xlsx`);
+  const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  saveAs(
+    new Blob([buf], { type: "application/octet-stream" }),
+   `Sales_${filterLabel}_${today()}.xlsx`
+  );
 }

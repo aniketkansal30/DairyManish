@@ -6,14 +6,13 @@ import { useState } from "react";
 
 // ─── ANALYTICS VIEW ───────────────────────────────────────────────────────────
 export default function AnalyticsView({ bills }) {
-  const [selectedDate, setSelectedDate] = useState(
+  const [selectedDate, setSelectedDate] = useState(() =>
   new Date().toLocaleDateString("en-CA")
 );
-  const filteredBills = selectedDate
+ const filteredBills = selectedDate
   ? bills.filter((b) => {
-      const billDate = b.date
-        ? new Date(b.date).toLocaleDateString("en-CA")
-        : "";
+      if (!b.date) return false;
+      const billDate = new Date(b.date).toLocaleDateString("en-CA");
       return billDate === selectedDate;
     })
   : bills;
@@ -168,7 +167,7 @@ export default function AnalyticsView({ bills }) {
               style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", fontSize: 13, outline: "none" }}
             />
             <button
-              onClick={() => setSelectedDate(today())}
+              onClick={() => setSelectedDate(new Date().toLocaleDateString("en-CA"))}
               style={{ padding: "6px 12px", borderRadius: 8, background: "#1a1310", color: "#f59e0b", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
             >
               Today

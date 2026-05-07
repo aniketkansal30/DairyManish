@@ -20,8 +20,9 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
   useEffect(() => {
     async function fetchBills() {
       let path = "/bills";
-      const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      const yesterdayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000 - 86400000).toISOString().slice(0, 10);
+      const todayIST = new Date().toLocaleDateString("en-CA");
+      const yesterdayIST = new Date(Date.now() - 86400000).toLocaleDateString("en-CA");
+
       if (filter === "today") path = `/bills?date=${todayIST}`;
       else if (filter === "yesterday") path = `/bills?date=${yesterdayIST}`;
       else if (filter === "month") path = `/bills?month=${thisMonth()}`;
@@ -29,38 +30,23 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
       else if (filter === "custom" && startDate) path = `/bills?date=${startDate}&endDate=${endDate || startDate}`;
       else return;
 
-      const cacheKey = path;
-
-      // Today ka cache 30 sec baad expire, baaki filters ka 5 min
       const cacheTTL = filter === "today" ? 30000 : 300000;
-      const cached = cache[cacheKey];
-       if (cached && Date.now() - cached.time < cacheTTL) {
+      const cached = cache[path];
+      if (cached && Date.now() - cached.time < cacheTTL) {
         setBills(cached.data);
         return;
       }
 
       setLoading(true);
       try {
-  const data = await apiCall(path);
-  if (filter === "today" || filter === "yesterday") {
-    const dateStr = filter === "today"
-      ? new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10)
-      : new Date(Date.now() + 5.5 * 60 * 60 * 1000 - 86400000).toISOString().slice(0, 10);
-    const istFiltered = data.filter(b => {
-      const ist = new Date(new Date(b.date).getTime() + 5.5 * 60 * 60 * 1000);
-      return `${ist.getFullYear()}-${String(ist.getMonth() + 1).padStart(2, "0")}-${String(ist.getDate()).padStart(2, "0")}` === dateStr;
-    });
-    setBills(istFiltered);
-  } else {
-    // custom, month, all — backend se jo aaya seedha set karo
-    setBills(data);
-  }
-  setCache((prev) => ({ ...prev, [cacheKey]: { data, time: Date.now() } }));
-} catch (e) {
-  console.error(e);
-} finally {
-  setLoading(false);
-} 
+        const data = await apiCall(path);
+        setBills(data);
+        setCache((prev) => ({ ...prev, [path]: { data, time: Date.now() } }));
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
     }
     fetchBills();
   }, [filter, startDate, endDate]);

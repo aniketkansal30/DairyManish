@@ -10,8 +10,8 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
   const [filter, setFilter] = useState("today");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [bills, setBills] = useState(initialBills);
-  const [loading, setLoading] = useState(false);
+  const [bills, setBills] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState([]);
   const [payFilter, setPayFilter] = useState("ALL");
   const [cache, setCache] = useState({});

@@ -2,17 +2,24 @@ import Icon from "./Icon";
 import { CAT_COLORS } from "../utils/constants";
 import { formatINR, formatDate, formatTime, formatQty, today, thisMonth } from "../utils/helpers";
 import { printBill } from "../utils/printBill";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { apiCall } from "../utils/api";
 
 // ─── ANALYTICS VIEW ───────────────────────────────────────────────────────────
-export default function AnalyticsView({ bills }) {
-  const [selectedDate, setSelectedDate] = useState(() =>
-  new Date().toLocaleDateString("en-CA")
-);
- const filteredBills = selectedDate
+export default function AnalyticsView() {
+  const [selectedDate, setSelectedDate] = useState(
+    () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA")
+  );
+  const [bills, setBills] = useState([]);
+
+  useEffect(() => {
+    apiCall("/bills").then(data => setBills(data)).catch(console.error);
+  }, []);
+
+  const filteredBills = selectedDate
   ? bills.filter((b) => {
       if (!b.date) return false;
-      const billDate = new Date(b.date).toLocaleDateString("en-CA");
+      const billDate = new Date(new Date(b.date).toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA");
       return billDate === selectedDate;
     })
   : bills;
@@ -28,8 +35,10 @@ export default function AnalyticsView({ bills }) {
   );
   const filteredItemData = Object.entries(filteredItemMap).sort(([, a], [, b]) => b.revenue - a.revenue);
   const filteredTotal = filteredBills.reduce((s, b) => s + b.total, 0);
-  const todayBills = bills.filter((b) => b.date?.slice(0, 10) === today());
-  const monthBills = bills.filter((b) => b.date?.slice(0, 7) === thisMonth());
+  const istDate = (isoStr) => isoStr ? new Date(new Date(isoStr).toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA") : "";
+const todayIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA");
+const todayBills = bills.filter((b) => istDate(b.date) === todayIST);
+const monthBills = bills.filter((b) => istDate(b.date).slice(0, 7) === todayIST.slice(0, 7));
 
   const totalSales = bills.reduce((s, b) => s + b.total, 0);
   const totalProfit = bills.reduce((s, b) => s + b.profit, 0);

@@ -2,6 +2,7 @@ import Login from "./Login";
 import { useState, useEffect, useMemo } from "react";
 import LicenseGate from "./LicenseGate";
 
+
 // Utils
 import { apiCall } from "./utils/api";
 import { today } from "./utils/helpers";
@@ -427,7 +428,7 @@ const loadBillIntoCart = (bill) => {
     onLoadEdit={loadBillIntoCart}
   />
 )}
-        {view === "analytics" && <AnalyticsView bills={bills} />}
+        {view === "analytics" && <AnalyticsView />}
         {view === "customers" && (
           <CustomersView
             customers={customers}

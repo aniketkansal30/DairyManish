@@ -26,7 +26,6 @@ app.use("/api/bills",     require("./routes/bills"));
 app.use("/api/customers", require("./routes/customers"));
 app.use("/api/auth", require("./routes/auth")); 
 app.use("/api/categories", require("./routes/categories"));
-app.use("/api/license", require("./routes/license"));
 app.get("/health", (req, res) => res.json({ ok: true }));
 
 // Health check

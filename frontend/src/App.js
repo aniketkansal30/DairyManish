@@ -1,6 +1,5 @@
 import Login from "./Login";
 import { useState, useEffect, useMemo } from "react";
-import LicenseGate from "./LicenseGate";
 
 
 // Utils
@@ -337,7 +336,6 @@ const loadBillIntoCart = (bill) => {
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
-    <LicenseGate> 
     <div
       style={{
         display: "flex",
@@ -439,6 +437,5 @@ const loadBillIntoCart = (bill) => {
         )}
       </div>
     </div>
-    </LicenseGate> 
   );
 }

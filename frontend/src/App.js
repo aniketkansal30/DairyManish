@@ -346,20 +346,6 @@ const loadBillIntoCart = (bill) => {
       }}
     >
       {/* Footer */}
-      <div
-        style={{
-          backgroundColor: "#1a1310",
-          color: "#f5f0eb",
-          textAlign: "center",
-          padding: "14px",
-          fontSize: "13px",
-        }}
-      >
-        Developed by{" "}
-        <strong style={{ color: "#f59e0b" }}>Aniket Kansal</strong> &{" "}
-        <strong style={{ color: "#f59e0b" }}>Akshansh Mittal</strong>
-        &nbsp;|&nbsp; 📞 +91-8126700718 & +91-8766392706
-      </div>
 
       <Navbar
         view={view}

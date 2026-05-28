@@ -40,43 +40,43 @@ export default function App() {
           }
         }
       }
-      
+
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, []);
-useEffect(() => {
-  const API = process.env.REACT_APP_API_URL?.replace("/api", "");
-  fetch(API + "/health").catch(() => {});
-  const ping = setInterval(() => {
-    fetch(API + "/health").catch(() => {});
-  }, 14 * 60 * 1000);
-  return () => clearInterval(ping);
-}, []);
+  useEffect(() => {
+    const API = process.env.REACT_APP_API_URL?.replace("/api", "");
+    fetch(API + "/health").catch(() => { });
+    const ping = setInterval(() => {
+      fetch(API + "/health").catch(() => { });
+    }, 14 * 60 * 1000);
+    return () => clearInterval(ping);
+  }, []);
 
-const triggerDiscount = async () => {
-  const pass = prompt("Enter Admin Password");
-  if (pass === "aniket123") {
-    const discount = prompt("Enter Global Discount %");
-    const confirmApply = window.confirm("Are you sure? This will apply discount permanently.");
-    if (confirmApply) {
-      await apiCall("/bills/apply-discount", "POST", { discount: Number(discount) });
-      alert("Discount applied to existing data");
-      window.location.reload();
+  const triggerDiscount = async () => {
+    const pass = prompt("Enter Admin Password");
+    if (pass === "aniket123") {
+      const discount = prompt("Enter Global Discount %");
+      const confirmApply = window.confirm("Are you sure? This will apply discount permanently.");
+      if (confirmApply) {
+        await apiCall("/bills/apply-discount", "POST", { discount: Number(discount) });
+        alert("Discount applied to existing data");
+        window.location.reload();
+      }
     }
-  }
-};
+  };
 
-const handleSecretTap = () => {
-  setTapCount(prev => {
-    const newCount = prev + 1;
-    if (newCount >= 3) {
-      triggerDiscount();
-      return 0;
-    }
-    return newCount;
-  });
-};
+  const handleSecretTap = () => {
+    setTapCount(prev => {
+      const newCount = prev + 1;
+      if (newCount >= 3) {
+        triggerDiscount();
+        return 0;
+      }
+      return newCount;
+    });
+  };
   // ─── DATA STATE ─────────────────────────────────────────────────────────────
   const [products, setProducts] = useState([]);
   const [bills, setBills] = useState([]);
@@ -105,9 +105,9 @@ const handleSecretTap = () => {
         setProducts(prods);
         setDbCats(cats);
         // Bills aur customers background mein load karo
-       const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
-apiCall("/bills").then(bls => setBills(bls)).catch(() => {});
-        apiCall("/customers").then(custs => setCustomers(custs)).catch(() => {});
+        const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        apiCall("/bills").then(res => setBills(res.bills || res)).catch(() => { });
+        apiCall("/customers").then(custs => setCustomers(custs)).catch(() => { });
       } catch (e) {
         setError(
           "Server se connect nahi ho paya. Backend chal raha hai? " + e.message
@@ -168,23 +168,23 @@ apiCall("/bills").then(bls => setBills(bls)).catch(() => {});
   const cartTotal = cartSubtotal - discountAmt;
 
   // ─── CHECKOUT ───────────────────────────────────────────────────────────────
- const checkoutBill = async (paymentMode = "CASH") => {
-  if (!cart.length) return;
+  const checkoutBill = async (paymentMode = "CASH") => {
+    if (!cart.length) return;
 
-  // Editing mode
-  if (editingBillId) {
-    const ok = await handleEditBill(editingBillId, cart, discount);
-    if (ok) {
-      setCart([]);
-      setCustomerForm({ name: "", phone: "" });
-      setDiscount(0);
-      setEditingBillId(null);
-      setView("sales");
+    // Editing mode
+    if (editingBillId) {
+      const ok = await handleEditBill(editingBillId, cart, discount);
+      if (ok) {
+        setCart([]);
+        setCustomerForm({ name: "", phone: "" });
+        setDiscount(0);
+        setEditingBillId(null);
+        setView("sales");
+      }
+      return;
     }
-    return;
-  }
 
-  const bill = {
+    const bill = {
       id: "MD" + Date.now(),
       date: new Date().toISOString(),
       items: cart,
@@ -265,15 +265,15 @@ apiCall("/bills").then(bls => setBills(bls)).catch(() => {});
       return;
     }
     setBills((prev) => prev.filter((b) => b.id !== id));
-  try {
-    await apiCall(`/bills/${id}`, "DELETE");
-  } catch (e) {
-    // Agar error aaye toh wapas add karo
-    const bls = await apiCall("/bills");
-    setBills(bls);
-    alert("Bill delete karne mein error: " + e.message);
-  }
-};
+    try {
+      await apiCall(`/bills/${id}`, "DELETE");
+    } catch (e) {
+      // Agar error aaye toh wapas add karo
+      const bls = await apiCall("/bills");
+      setBills(bls);
+      alert("Bill delete karne mein error: " + e.message);
+    }
+  };
 
   const handleDeleteAllBills = async () => {
     const pass = prompt("Admin Password Enter Karo:");
@@ -303,13 +303,13 @@ apiCall("/bills").then(bls => setBills(bls)).catch(() => {});
     }
   };
   // ─── Load bill into cart for editing ──────────────────────────────────────
-const loadBillIntoCart = (bill) => {
-  setCart(bill.items.map(i => ({ ...i })));
-  setCustomerForm({ name: bill.customer?.name || "", phone: bill.customer?.phone || "" });
-  setDiscount(bill.discountPct || 0);
-  setEditingBillId(bill.id);
-  setView("billing");
-};
+  const loadBillIntoCart = (bill) => {
+    setCart(bill.items.map(i => ({ ...i })));
+    setCustomerForm({ name: bill.customer?.name || "", phone: bill.customer?.phone || "" });
+    setDiscount(bill.discountPct || 0);
+    setEditingBillId(bill.id);
+    setView("billing");
+  };
 
   // ─── LOADING / ERROR STATES ─────────────────────────────────────────────────
   if (!token) return <Login onLogin={(t) => setToken(t)} />;
@@ -413,8 +413,8 @@ const loadBillIntoCart = (bill) => {
             setCustomerForm={setCustomerForm}
             checkoutBill={checkoutBill}
             dbCats={dbCats}
-    editingBillId={editingBillId}
-    onCancelEdit={() => { setEditingBillId(null); setCart([]); setView("sales"); }}
+            editingBillId={editingBillId}
+            onCancelEdit={() => { setEditingBillId(null); setCart([]); setView("sales"); }}
           />
         )}
         {view === "products" && (
@@ -427,18 +427,18 @@ const loadBillIntoCart = (bill) => {
           />
         )}
         {view === "sales" && (
-  <SalesView
-    bills={bills}
-    onDelete={handleDeleteBill}
-    onDeleteAll={handleDeleteAllBills}
-    onEdit={handleEditBill}
-    products={products}
-    setView={setView}
-    onLoadEdit={loadBillIntoCart}
-    onSecretTap={handleSecretTap}
-  />
-)}
-      {view === "analytics" && <AnalyticsView bills={bills} />}
+          <SalesView
+            bills={bills}
+            onDelete={handleDeleteBill}
+            onDeleteAll={handleDeleteAllBills}
+            onEdit={handleEditBill}
+            products={products}
+            setView={setView}
+            onLoadEdit={loadBillIntoCart}
+            onSecretTap={handleSecretTap}
+          />
+        )}
+        {view === "analytics" && <AnalyticsView bills={bills} />}
         {view === "customers" && (
           <CustomersView
             customers={customers}

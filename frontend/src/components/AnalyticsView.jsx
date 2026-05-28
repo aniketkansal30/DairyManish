@@ -2,98 +2,119 @@ import Icon from "./Icon";
 import { CAT_COLORS } from "../utils/constants";
 import { formatINR, formatDate, formatTime, formatQty, today, thisMonth } from "../utils/helpers";
 import { printBill } from "../utils/printBill";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { apiCall } from "../utils/api";
 
-// ─── ANALYTICS VIEW ───────────────────────────────────────────────────────────
-export default function AnalyticsView() {
+export default function AnalyticsView({ bills = [] }) {
   const [selectedDate, setSelectedDate] = useState(
     () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA")
   );
-  const [bills, setBills] = useState([]);
+  
   const [selectedCategory, setSelectedCategory] = useState("All");
 
-  useEffect(() => {
-    apiCall("/bills").then(data => setBills(data)).catch(console.error);
-  }, []);
+ 
 
-  const filteredBills = selectedDate
-    ? bills.filter((b) => {
+  const isMobile = window.innerWidth < 768;
+
+  // IST date helper — memoized
+  const istDate = useMemo(() => (isoStr) =>
+    isoStr ? new Date(new Date(isoStr).toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA") : ""
+  , []);
+
+  const todayIST = useMemo(() =>
+    new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA")
+  , []);
+
+  // Filter bills by selected date — only recalculates when bills or selectedDate changes
+  const filteredBills = useMemo(() => {
+    if (!selectedDate) return bills;
+    return bills.filter((b) => {
       if (!b.date) return false;
-      const billDate = new Date(new Date(b.date).toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA");
-      return billDate === selectedDate;
-    })
-    : bills;
+      return istDate(b.date) === selectedDate;
+    });
+  }, [bills, selectedDate, istDate]);
 
-  const filteredItemMap = {};
-  filteredBills.forEach((b) =>
-    b.items?.forEach((i) => {
-      if (!filteredItemMap[i.name])
-        filteredItemMap[i.name] = { qty: 0, revenue: 0, unit: i.unit, category: i.category || "Other" };
-      filteredItemMap[i.name].qty += i.qty;
-      filteredItemMap[i.name].revenue += i.total;
-    })
-  );
-  const allCategories = ["All", ...new Set(
-    Object.values(filteredItemMap).map(v => v.category).filter(Boolean).sort()
-  )];
+  // Item map for date-wise report — only recalculates when filteredBills changes
+  const filteredItemMap = useMemo(() => {
+    const map = {};
+    filteredBills.forEach((b) =>
+      b.items?.forEach((i) => {
+        if (!map[i.name])
+          map[i.name] = { qty: 0, revenue: 0, unit: i.unit, category: i.category || "Other" };
+        map[i.name].qty += i.qty;
+        map[i.name].revenue += i.total;
+      })
+    );
+    return map;
+  }, [filteredBills]);
 
-  const filteredItemData = Object.entries(filteredItemMap)
-    .filter(([, v]) => selectedCategory === "All" || v.category === selectedCategory)
-    .sort(([, a], [, b]) => b.revenue - a.revenue);
-  const filteredTotal = filteredBills.reduce((s, b) => s + b.total, 0);
-  const istDate = (isoStr) => isoStr ? new Date(new Date(isoStr).toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA") : "";
-  const todayIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA");
-  const todayBills = bills.filter((b) => istDate(b.date) === todayIST);
-  const monthBills = bills.filter((b) => istDate(b.date).slice(0, 7) === todayIST.slice(0, 7));
+  // Categories — only recalculates when filteredItemMap changes
+  const allCategories = useMemo(() =>
+    ["All", ...new Set(Object.values(filteredItemMap).map(v => v.category).filter(Boolean).sort())]
+  , [filteredItemMap]);
 
-  const totalSales = bills.reduce((s, b) => s + b.total, 0);
-  const totalProfit = bills.reduce((s, b) => s + b.profit, 0);
-  const todaySales = todayBills.reduce((s, b) => s + b.total, 0);
-  const todayProfit = todayBills.reduce((s, b) => s + b.profit, 0);
+  // Filtered item data by category — only recalculates when selectedCategory or filteredItemMap changes
+  const filteredItemData = useMemo(() =>
+    Object.entries(filteredItemMap)
+      .filter(([, v]) => selectedCategory === "All" || v.category === selectedCategory)
+      .sort(([, a], [, b]) => b.revenue - a.revenue)
+  , [filteredItemMap, selectedCategory]);
 
-  // Daily chart data
-  const dailyMap = {};
-  monthBills.forEach((b) => {
-    const d = b.date?.slice(0, 10);
-    if (!dailyMap[d]) dailyMap[d] = { sales: 0, profit: 0, count: 0 };
-    dailyMap[d].sales += b.total;
-    dailyMap[d].profit += b.profit;
-    dailyMap[d].count++;
-  });
-  const dailyData = Object.entries(dailyMap).sort(([a], [b]) => a.localeCompare(b));
-  const maxSales = Math.max(...dailyData.map(([, v]) => v.sales), 1);
+  const filteredTotal = useMemo(() =>
+    filteredBills.reduce((s, b) => s + b.total, 0)
+  , [filteredBills]);
 
-  // Top items by revenue
-  const itemMap = {};
-  bills.forEach((b) =>
-    b.items?.forEach((i) => {
-      if (!itemMap[i.name]) itemMap[i.name] = { qty: 0, revenue: 0, count: 0 };
-      itemMap[i.name].qty += i.qty;
-      itemMap[i.name].revenue += i.total;
-      itemMap[i.name].count++;
-    })
-  );
-  const topItems = Object.entries(itemMap)
-    .sort(([, a], [, b]) => b.revenue - a.revenue)
-    .slice(0, 8);
-  const maxRev = Math.max(...topItems.map(([, v]) => v.revenue), 1);
+  // KPI calculations — only recalculates when bills changes
+  const { todayBills, monthBills, totalSales, totalProfit, todaySales, todayProfit } = useMemo(() => {
+    const todayBills = bills.filter((b) => istDate(b.date) === todayIST);
+    const monthBills = bills.filter((b) => istDate(b.date).slice(0, 7) === todayIST.slice(0, 7));
+    return {
+      todayBills,
+      monthBills,
+      totalSales: bills.reduce((s, b) => s + b.total, 0),
+      totalProfit: bills.reduce((s, b) => s + b.profit, 0),
+      todaySales: todayBills.reduce((s, b) => s + b.total, 0),
+      todayProfit: todayBills.reduce((s, b) => s + b.profit, 0),
+    };
+  }, [bills, istDate, todayIST]);
 
-  // Item quantity totals
-  const itemQtyMap = {};
-  bills.forEach((b) =>
-    b.items?.forEach((i) => {
-      if (!itemQtyMap[i.name])
-        itemQtyMap[i.name] = { qty: 0, unit: i.unit, category: i.category || "Other" };
-      itemQtyMap[i.name].qty += i.qty;
-    })
-  );
-  const itemQtyData = Object.entries(itemQtyMap).sort(([, a], [, b]) => b.qty - a.qty);
+  // Daily chart data — only recalculates when monthBills changes
+  const { dailyData, maxSales } = useMemo(() => {
+    const dailyMap = {};
+    monthBills.forEach((b) => {
+      const d = b.date?.slice(0, 10);
+      if (!dailyMap[d]) dailyMap[d] = { sales: 0, profit: 0, count: 0 };
+      dailyMap[d].sales += b.total;
+      dailyMap[d].profit += b.profit;
+      dailyMap[d].count++;
+    });
+    const dailyData = Object.entries(dailyMap).sort(([a], [b]) => a.localeCompare(b));
+    const maxSales = Math.max(...dailyData.map(([, v]) => v.sales), 1);
+    return { dailyData, maxSales };
+  }, [monthBills]);
+
+  // Top items — only recalculates when bills changes
+  const { topItems, maxRev } = useMemo(() => {
+    const itemMap = {};
+    bills.forEach((b) =>
+      b.items?.forEach((i) => {
+        if (!itemMap[i.name]) itemMap[i.name] = { qty: 0, revenue: 0, count: 0 };
+        itemMap[i.name].qty += i.qty;
+        itemMap[i.name].revenue += i.total;
+        itemMap[i.name].count++;
+      })
+    );
+    const topItems = Object.entries(itemMap)
+      .sort(([, a], [, b]) => b.revenue - a.revenue)
+      .slice(0, 8);
+    const maxRev = Math.max(...topItems.map(([, v]) => v.revenue), 1);
+    return { topItems, maxRev };
+  }, [bills]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {/* KPI row */}
-      <div style={{ display: "grid", gridTemplateColumns: window.innerWidth < 768 ? "1fr 1fr" : "repeat(4, 1fr)", gap: window.innerWidth < 768 ? 10 : 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 10 : 16 }}>
         {[
           { label: "Today Sales", value: formatINR(todaySales), color: "#2563eb", sub: `${todayBills.length} bills` },
           { label: "Today Profit", value: "₹0.00", color: "#16a34a", sub: `${todaySales > 0 ? Math.round((todayProfit / todaySales) * 100) : 0}% margin` },
@@ -109,7 +130,7 @@ export default function AnalyticsView() {
       </div>
 
       {/* Charts row */}
-      <div style={{ display: "grid", gridTemplateColumns: window.innerWidth < 768 ? "1fr" : "1fr 1fr", gap: window.innerWidth < 768 ? 14 : 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 14 : 24 }}>
         {/* Daily bar chart */}
         <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", padding: 20 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 16 }}>📅 This Month – Daily Sales</div>
@@ -196,6 +217,7 @@ export default function AnalyticsView() {
             </button>
           </div>
         </div>
+
         {/* Category Tabs */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
           {allCategories.map((cat) => (
@@ -224,8 +246,9 @@ export default function AnalyticsView() {
           </span>
           <span style={{ fontSize: 14, fontWeight: 900, color: "#2563eb" }}>{formatINR(filteredTotal)}</span>
         </div>
+
         {filteredItemData.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "20px 0" }}>Is date koi sale nahi</div>}
-        <div style={{ display: "grid", gridTemplateColumns: window.innerWidth < 768 ? "1fr 1fr" : "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
           {filteredItemData.map(([name, v]) => (
             <div key={name} style={{ background: "#f8f5f0", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e0d8" }}>
               <div style={{ fontSize: 11, color: CAT_COLORS[v.category] || "#8a7e6e", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>

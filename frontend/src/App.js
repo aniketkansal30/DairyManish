@@ -81,7 +81,7 @@ useEffect(() => {
         setDbCats(cats);
         // Bills aur customers background mein load karo
        const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
-apiCall("/bills?date=" + todayIST).then(bls => setBills(bls)).catch(() => {});
+apiCall("/bills").then(bls => setBills(bls)).catch(() => {});
         apiCall("/customers").then(custs => setCustomers(custs)).catch(() => {});
       } catch (e) {
         setError(
@@ -412,7 +412,7 @@ const loadBillIntoCart = (bill) => {
     onLoadEdit={loadBillIntoCart}
   />
 )}
-        {view === "analytics" && <AnalyticsView />}
+      {view === "analytics" && <AnalyticsView bills={bills} />}
         {view === "customers" && (
           <CustomersView
             customers={customers}

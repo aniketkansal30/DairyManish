@@ -1,46 +1,34 @@
 import Icon from "./Icon";
 import { CAT_COLORS } from "../utils/constants";
-import { formatINR, formatDate, formatTime, formatQty, today, thisMonth } from "../utils/helpers";
+import { formatINR, formatDate, formatTime, formatQty } from "../utils/helpers";
 import { printBill } from "../utils/printBill";
-import { useState, useEffect, useMemo } from "react";
-import { apiCall } from "../utils/api";
+import { useState, useMemo } from "react";
 
 export default function AnalyticsView({ bills = [] }) {
   const [selectedDate, setSelectedDate] = useState(
     () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA")
   );
-  
   const [selectedCategory, setSelectedCategory] = useState("All");
-
- 
 
   const isMobile = window.innerWidth < 768;
 
-  // IST date helper — memoized
-  const istDate = useMemo(() => (isoStr) =>
-    isoStr ? new Date(new Date(isoStr).toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA") : ""
-  , []);
+  const istDate = (isoStr) =>
+    isoStr ? new Date(new Date(isoStr).toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA") : "";
 
   const todayIST = useMemo(() =>
     new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA")
   , []);
 
-  // Filter bills by selected date — only recalculates when bills or selectedDate changes
   const filteredBills = useMemo(() => {
     if (!selectedDate) return bills;
-    return bills.filter((b) => {
-      if (!b.date) return false;
-      return istDate(b.date) === selectedDate;
-    });
-  }, [bills, selectedDate, istDate]);
+    return bills.filter((b) => b.date && istDate(b.date) === selectedDate);
+  }, [bills, selectedDate]);
 
-  // Item map for date-wise report — only recalculates when filteredBills changes
   const filteredItemMap = useMemo(() => {
     const map = {};
     filteredBills.forEach((b) =>
       b.items?.forEach((i) => {
-        if (!map[i.name])
-          map[i.name] = { qty: 0, revenue: 0, unit: i.unit, category: i.category || "Other" };
+        if (!map[i.name]) map[i.name] = { qty: 0, revenue: 0, unit: i.unit, category: i.category || "Other" };
         map[i.name].qty += i.qty;
         map[i.name].revenue += i.total;
       })
@@ -48,23 +36,18 @@ export default function AnalyticsView({ bills = [] }) {
     return map;
   }, [filteredBills]);
 
-  // Categories — only recalculates when filteredItemMap changes
   const allCategories = useMemo(() =>
     ["All", ...new Set(Object.values(filteredItemMap).map(v => v.category).filter(Boolean).sort())]
   , [filteredItemMap]);
 
-  // Filtered item data by category — only recalculates when selectedCategory or filteredItemMap changes
   const filteredItemData = useMemo(() =>
     Object.entries(filteredItemMap)
       .filter(([, v]) => selectedCategory === "All" || v.category === selectedCategory)
       .sort(([, a], [, b]) => b.revenue - a.revenue)
   , [filteredItemMap, selectedCategory]);
 
-  const filteredTotal = useMemo(() =>
-    filteredBills.reduce((s, b) => s + b.total, 0)
-  , [filteredBills]);
+  const filteredTotal = useMemo(() => filteredBills.reduce((s, b) => s + b.total, 0), [filteredBills]);
 
-  // KPI calculations — only recalculates when bills changes
   const { todayBills, monthBills, totalSales, totalProfit, todaySales, todayProfit } = useMemo(() => {
     const todayBills = bills.filter((b) => istDate(b.date) === todayIST);
     const monthBills = bills.filter((b) => istDate(b.date).slice(0, 7) === todayIST.slice(0, 7));
@@ -76,9 +59,8 @@ export default function AnalyticsView({ bills = [] }) {
       todaySales: todayBills.reduce((s, b) => s + b.total, 0),
       todayProfit: todayBills.reduce((s, b) => s + b.profit, 0),
     };
-  }, [bills, istDate, todayIST]);
+  }, [bills, todayIST]);
 
-  // Daily chart data — only recalculates when monthBills changes
   const { dailyData, maxSales } = useMemo(() => {
     const dailyMap = {};
     monthBills.forEach((b) => {
@@ -89,11 +71,9 @@ export default function AnalyticsView({ bills = [] }) {
       dailyMap[d].count++;
     });
     const dailyData = Object.entries(dailyMap).sort(([a], [b]) => a.localeCompare(b));
-    const maxSales = Math.max(...dailyData.map(([, v]) => v.sales), 1);
-    return { dailyData, maxSales };
+    return { dailyData, maxSales: Math.max(...dailyData.map(([, v]) => v.sales), 1) };
   }, [monthBills]);
 
-  // Top items — only recalculates when bills changes
   const { topItems, maxRev } = useMemo(() => {
     const itemMap = {};
     bills.forEach((b) =>
@@ -104,11 +84,8 @@ export default function AnalyticsView({ bills = [] }) {
         itemMap[i.name].count++;
       })
     );
-    const topItems = Object.entries(itemMap)
-      .sort(([, a], [, b]) => b.revenue - a.revenue)
-      .slice(0, 8);
-    const maxRev = Math.max(...topItems.map(([, v]) => v.revenue), 1);
-    return { topItems, maxRev };
+    const topItems = Object.entries(itemMap).sort(([, a], [, b]) => b.revenue - a.revenue).slice(0, 8);
+    return { topItems, maxRev: Math.max(...topItems.map(([, v]) => v.revenue), 1) };
   }, [bills]);
 
   return (
@@ -131,7 +108,6 @@ export default function AnalyticsView({ bills = [] }) {
 
       {/* Charts row */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 14 : 24 }}>
-        {/* Daily bar chart */}
         <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", padding: 20 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 16 }}>📅 This Month – Daily Sales</div>
           {dailyData.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "30px 0" }}>No data yet</div>}
@@ -151,7 +127,6 @@ export default function AnalyticsView({ bills = [] }) {
           </div>
         </div>
 
-        {/* Top items */}
         <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", padding: 20 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 16 }}>🏆 Top Selling Items</div>
           {topItems.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "30px 0" }}>No data yet</div>}
@@ -192,49 +167,28 @@ export default function AnalyticsView({ bills = [] }) {
         {bills.length === 0 && <div style={{ textAlign: "center", color: "#c9b9a8", padding: "30px 0" }}>No bills yet. Start billing!</div>}
       </div>
 
-      {/* Item qty sold grid */}
+      {/* Date-wise Item Report */}
       <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310" }}>📦 Date-wise Item Report</div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", fontSize: 13, outline: "none" }}
-            />
-            <button
-              onClick={() => setSelectedDate(new Date().toLocaleDateString("en-CA"))}
-              style={{ padding: "6px 12px", borderRadius: 8, background: "#1a1310", color: "#f59e0b", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-            >
+            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
+              style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", fontSize: 13, outline: "none" }} />
+            <button onClick={() => setSelectedDate(new Date().toLocaleDateString("en-CA"))}
+              style={{ padding: "6px 12px", borderRadius: 8, background: "#1a1310", color: "#f59e0b", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
               Today
             </button>
-            <button
-              onClick={() => setSelectedDate("")}
-              style={{ padding: "6px 12px", borderRadius: 8, background: "#f0ebe4", color: "#4a3f35", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-            >
+            <button onClick={() => setSelectedDate("")}
+              style={{ padding: "6px 12px", borderRadius: 8, background: "#f0ebe4", color: "#4a3f35", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
               All Time
             </button>
           </div>
         </div>
 
-        {/* Category Tabs */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
           {allCategories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              style={{
-                padding: "7px 14px",
-                borderRadius: 10,
-                border: "1px solid #e5e0d8",
-                background: selectedCategory === cat ? "#1a1310" : "#fff",
-                color: selectedCategory === cat ? "#f59e0b" : "#4a3f35",
-                fontWeight: 700,
-                fontSize: 12,
-                cursor: "pointer",
-              }}
-            >
+            <button key={cat} onClick={() => setSelectedCategory(cat)}
+              style={{ padding: "7px 14px", borderRadius: 10, border: "1px solid #e5e0d8", background: selectedCategory === cat ? "#1a1310" : "#fff", color: selectedCategory === cat ? "#f59e0b" : "#4a3f35", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
               {cat}
             </button>
           ))}
@@ -251,16 +205,10 @@ export default function AnalyticsView({ bills = [] }) {
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
           {filteredItemData.map(([name, v]) => (
             <div key={name} style={{ background: "#f8f5f0", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e0d8" }}>
-              <div style={{ fontSize: 11, color: CAT_COLORS[v.category] || "#8a7e6e", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>
-                {v.category}
-              </div>
+              <div style={{ fontSize: 11, color: CAT_COLORS[v.category] || "#8a7e6e", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{v.category}</div>
               <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 6 }}>{name}</div>
-              <div style={{ fontSize: 20, fontWeight: 900, color: CAT_COLORS[v.category] || "#f59e0b" }}>
-                {formatQty(v.qty, v.unit)}
-              </div>
-              <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700, marginTop: 4 }}>
-                {formatINR(v.revenue)}
-              </div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: CAT_COLORS[v.category] || "#f59e0b" }}>{formatQty(v.qty, v.unit)}</div>
+              <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700, marginTop: 4 }}>{formatINR(v.revenue)}</div>
               <div style={{ fontSize: 11, color: "#8a7e6e" }}>Total sold · Total amount</div>
             </div>
           ))}

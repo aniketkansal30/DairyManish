@@ -6,7 +6,8 @@ import { exportToExcel } from "../utils/exportExcel";
 import { printBill } from "../utils/printBill";
 
 // ─── SALES VIEW ───────────────────────────────────────────────────────────────
-export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, onEdit, products, setView, onLoadEdit, onSecretTap }) {  const [filter, setFilter] = useState("today");
+export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, onEdit, products, setView, onLoadEdit, onSecretTap }) {
+  const [filter, setFilter] = useState("today");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [bills, setBills] = useState([]);
@@ -39,7 +40,7 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
       setLoading(true);
       try {
         const data = await apiCall(path);
-        setBills(data);
+        setBills(Array.isArray(data) ? data : (data.bills || []));
         setCache((prev) => ({ ...prev, [path]: { data, time: Date.now() } }));
       } catch (e) {
         console.error(e);

@@ -23,11 +23,11 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
       const todayIST = new Date().toLocaleDateString("en-CA");
       const yesterdayIST = new Date(Date.now() - 86400000).toLocaleDateString("en-CA");
 
-      if (filter === "today") path = `/bills?date=${todayIST}`;
-      else if (filter === "yesterday") path = `/bills?date=${yesterdayIST}`;
-      else if (filter === "month") path = `/bills?month=${thisMonth()}`;
-      else if (filter === "all") path = `/bills`;
-      else if (filter === "custom" && startDate) path = `/bills?date=${startDate}&endDate=${endDate || startDate}`;
+      if (filter === "today") path = `/bills?date=${todayIST}&limit=10000`;
+      else if (filter === "yesterday") path = `/bills?date=${yesterdayIST}&limit=10000`;
+      else if (filter === "month") path = `/bills?month=${thisMonth()}&limit=10000`;
+      else if (filter === "all") path = `/bills?limit=10000`;
+      else if (filter === "custom" && startDate) path = `/bills?date=${startDate}&endDate=${endDate || startDate}&limit=10000`;
       else return;
 
       const cacheTTL = filter === "today" ? 30000 : 300000;

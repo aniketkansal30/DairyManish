@@ -37,7 +37,7 @@ router.get("/", async (req, res) => {
     }
 
     // ✅ Pagination — default 50, max 200
-    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const limit = Math.min(parseInt(req.query.limit) || 50, 10000);
     const skip  = parseInt(req.query.skip) || 0;
 
     // ✅ lean() — plain JS object, ~30% faster, less memory

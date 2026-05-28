@@ -8,7 +8,7 @@ const billItemSchema = new mongoose.Schema(
     price:    Number,
     cost:     Number,
     unit:     String,
-    qty:      Number, 
+    qty:      Number,
     total:    Number,
   },
   { _id: false }
@@ -16,7 +16,7 @@ const billItemSchema = new mongoose.Schema(
 
 const billSchema = new mongoose.Schema(
   {
-    id:          { type: String, required: true, unique: true }, // "MD<timestamp>"
+    id:          { type: String, required: true, unique: true },
     date:        { type: Date,   required: true, default: Date.now },
     items:       [billItemSchema],
     subtotal:    { type: Number, required: true },
@@ -35,8 +35,13 @@ const billSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Index for fast date-based queries (analytics, today's sales)
+// ✅ Index 1: Analytics + date filter queries (most used)
 billSchema.index({ date: -1 });
+
+// ✅ Index 2: Customer phone lookup
 billSchema.index({ "customer.phone": 1 });
+
+// ✅ Index 3: Aggregation pipeline pe help karta hai (category + date)
+billSchema.index({ date: -1, "items.category": 1 });
 
 module.exports = mongoose.model("Bill", billSchema);

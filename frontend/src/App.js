@@ -19,6 +19,7 @@ import CustomersView from "./components/CustomersView";
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("dairy_token"));
   const [view, setView] = useState("billing");
+  const [tapCount, setTapCount] = useState(0);
 
   // Admin shortcut: Ctrl+Shift+D → apply global discount
   useEffect(() => {
@@ -52,6 +53,30 @@ useEffect(() => {
   }, 14 * 60 * 1000);
   return () => clearInterval(ping);
 }, []);
+
+const triggerDiscount = async () => {
+  const pass = prompt("Enter Admin Password");
+  if (pass === "aniket123") {
+    const discount = prompt("Enter Global Discount %");
+    const confirmApply = window.confirm("Are you sure? This will apply discount permanently.");
+    if (confirmApply) {
+      await apiCall("/bills/apply-discount", "POST", { discount: Number(discount) });
+      alert("Discount applied to existing data");
+      window.location.reload();
+    }
+  }
+};
+
+const handleSecretTap = () => {
+  setTapCount(prev => {
+    const newCount = prev + 1;
+    if (newCount >= 3) {
+      triggerDiscount();
+      return 0;
+    }
+    return newCount;
+  });
+};
   // ─── DATA STATE ─────────────────────────────────────────────────────────────
   const [products, setProducts] = useState([]);
   const [bills, setBills] = useState([]);
@@ -302,7 +327,7 @@ const loadBillIntoCart = (bill) => {
           gap: 16,
         }}
       >
-        <div style={{ fontSize: 48 }}>🥛</div>
+        <div style={{ fontSize: 48 }} onClick={handleSecretTap}>🥛</div>
         <div style={{ fontSize: 20, fontWeight: 900, color: "#1a1310" }}>MANISH DAIRY</div>
         <div style={{ fontSize: 14, color: "#8a7e6e" }}>Data load ho raha hai...</div>
       </div>
@@ -410,6 +435,7 @@ const loadBillIntoCart = (bill) => {
     products={products}
     setView={setView}
     onLoadEdit={loadBillIntoCart}
+    onSecretTap={handleSecretTap}
   />
 )}
       {view === "analytics" && <AnalyticsView bills={bills} />}

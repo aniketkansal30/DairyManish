@@ -11,18 +11,19 @@ export default function AnalyticsView() {
     () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA")
   );
   const [bills, setBills] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("All");
 
   useEffect(() => {
     apiCall("/bills").then(data => setBills(data)).catch(console.error);
   }, []);
 
   const filteredBills = selectedDate
-  ? bills.filter((b) => {
+    ? bills.filter((b) => {
       if (!b.date) return false;
       const billDate = new Date(new Date(b.date).toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA");
       return billDate === selectedDate;
     })
-  : bills;
+    : bills;
 
   const filteredItemMap = {};
   filteredBills.forEach((b) =>
@@ -33,12 +34,18 @@ export default function AnalyticsView() {
       filteredItemMap[i.name].revenue += i.total;
     })
   );
-  const filteredItemData = Object.entries(filteredItemMap).sort(([, a], [, b]) => b.revenue - a.revenue);
+  const allCategories = ["All", ...new Set(
+    Object.values(filteredItemMap).map(v => v.category).filter(Boolean).sort()
+  )];
+
+  const filteredItemData = Object.entries(filteredItemMap)
+    .filter(([, v]) => selectedCategory === "All" || v.category === selectedCategory)
+    .sort(([, a], [, b]) => b.revenue - a.revenue);
   const filteredTotal = filteredBills.reduce((s, b) => s + b.total, 0);
   const istDate = (isoStr) => isoStr ? new Date(new Date(isoStr).toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA") : "";
-const todayIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA");
-const todayBills = bills.filter((b) => istDate(b.date) === todayIST);
-const monthBills = bills.filter((b) => istDate(b.date).slice(0, 7) === todayIST.slice(0, 7));
+  const todayIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA");
+  const todayBills = bills.filter((b) => istDate(b.date) === todayIST);
+  const monthBills = bills.filter((b) => istDate(b.date).slice(0, 7) === todayIST.slice(0, 7));
 
   const totalSales = bills.reduce((s, b) => s + b.total, 0);
   const totalProfit = bills.reduce((s, b) => s + b.profit, 0);
@@ -188,6 +195,27 @@ const monthBills = bills.filter((b) => istDate(b.date).slice(0, 7) === todayIST.
               All Time
             </button>
           </div>
+        </div>
+        {/* Category Tabs */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+          {allCategories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              style={{
+                padding: "7px 14px",
+                borderRadius: 10,
+                border: "1px solid #e5e0d8",
+                background: selectedCategory === cat ? "#1a1310" : "#fff",
+                color: selectedCategory === cat ? "#f59e0b" : "#4a3f35",
+                fontWeight: 700,
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
 
         <div style={{ background: "#fff8ee", borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between" }}>

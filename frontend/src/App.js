@@ -106,7 +106,7 @@ export default function App() {
         setDbCats(cats);
         // Bills aur customers background mein load karo
         const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        apiCall("/bills").then(res => setBills(res.bills || res)).catch(() => { });
+        apiCall("/bills?limit=10000").then(res => setBills(res.bills || res)).catch(() => { });
         apiCall("/customers").then(custs => setCustomers(custs)).catch(() => { });
       } catch (e) {
         setError(

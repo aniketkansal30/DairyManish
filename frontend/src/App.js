@@ -23,6 +23,7 @@ export default function App() {
 
   // Admin shortcut: Ctrl+Shift+D → apply global discount
   useEffect(() => {
+    
     const handleKey = async (e) => {
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "d") {
         const pass = prompt("Enter Admin Password");
@@ -82,7 +83,7 @@ export default function App() {
   const [bills, setBills] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [dbCats, setDbCats] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // ─── BILLING STATE ──────────────────────────────────────────────────────────
@@ -95,6 +96,7 @@ export default function App() {
 
   // ─── LOAD DATA ──────────────────────────────────────────────────────────────
   useEffect(() => {
+    if (!token) return;
     async function loadAll() {
       try {
         setLoading(true);

@@ -2,7 +2,7 @@ const router = require("express").Router();
 const authMiddleware = require("../middleware/auth");
 const Category = require("../models/Category");
 
-router.use(authMiddleware); // ← MISSING THA
+
 
 router.get("/", async (req, res) => {
   try {
@@ -13,7 +13,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/",authMiddleware, async (req, res) => {
   try {
     const cat = new Category({ name: req.body.name });
     await cat.save();
@@ -22,7 +22,7 @@ router.post("/", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-router.delete("/:name", async (req, res) => {
+router.delete("/:name",authMiddleware, async (req, res) => {
   try {
     await Category.findOneAndDelete({ name: req.params.name });
     res.json({ success: true });

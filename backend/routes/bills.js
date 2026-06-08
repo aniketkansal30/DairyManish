@@ -2,7 +2,6 @@ const router = require("express").Router();
 const authMiddleware = require("../middleware/auth");
 const Bill = require("../models/Bill");
 
-router.use(authMiddleware);
 
 // ─── Helper: IST date range ───────────────────────────────────────────────────
 function istRange(dateStr, endDateStr) {
@@ -53,7 +52,7 @@ router.get("/", async (req, res) => {
 });
 
 // ─── POST /api/bills ──────────────────────────────────────────────────────────
-router.post("/", async (req, res) => {
+router.post("/", authMiddleware,async (req, res) => {
   try {
     const items = Array.isArray(req.body.items) ? req.body.items : [];
 
@@ -92,7 +91,7 @@ router.post("/", async (req, res) => {
 
 // ─── POST /api/bills/apply-discount ──────────────────────────────────────────
 // ✅ FIXED: Ek hi bulkWrite query — N individual updates nahi
-router.post("/apply-discount", async (req, res) => {
+router.post("/apply-discount", authMiddleware,async (req, res) => {
   try {
     const { discount } = req.body;
     const d = parseFloat(discount) / 100;
@@ -145,7 +144,7 @@ router.post("/apply-discount", async (req, res) => {
 
 // ─── GET /api/bills/analytics ─────────────────────────────────────────────────
 // ✅ FULLY REWRITTEN — MongoDB aggregation, zero JS-side number crunching
-router.get("/analytics", async (req, res) => {
+router.get("/analytics",async (req, res) => {
   try {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -237,7 +236,7 @@ router.get("/analytics", async (req, res) => {
 });
 
 // ─── DELETE /api/bills/all ────────────────────────────────────────────────────
-router.delete("/all", async (req, res) => {
+router.delete("/all",authMiddleware, async (req, res) => {
   try {
     const { confirmCode } = req.body;
     if (confirmCode !== process.env.DELETE_ALL_CODE)

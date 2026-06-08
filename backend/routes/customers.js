@@ -4,7 +4,7 @@ const Customer = require("../models/Customer");
 const Bill     = require("../models/Bill");
 
 // GET /api/customers — saare customers, optional ?search=
-router.use(authMiddleware);
+
 router.get("/", async (req, res) => {
   try {
     let customers;
@@ -39,7 +39,7 @@ router.get("/:phone", async (req, res) => {
 });
 
 // PUT /api/customers/:phone — customer update karo
-router.put("/:phone", async (req, res) => {
+router.put("/:phone",authMiddleware, async (req, res) => {
   try {
     const customer = await Customer.findOneAndUpdate(
       { phone: req.params.phone },

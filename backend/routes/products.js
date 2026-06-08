@@ -1,7 +1,7 @@
 const router  = require("express").Router();
 const authMiddleware = require("../middleware/auth");
 const Product = require("../models/Product");
-router.use(authMiddleware);
+
 
 
 // GET /api/products
@@ -25,7 +25,7 @@ router.get("/", async (req, res) => {
 });
 
 // POST /api/products — naya product banao (fixed ID generation)
-router.post("/", async (req, res) => {
+router.post("/",authMiddleware, async (req, res) => {
   try {
     const allProducts = await Product.find();
 
@@ -45,7 +45,7 @@ router.post("/", async (req, res) => {
 });
 
 // PUT /api/products/:id
-router.put("/:id", async (req, res) => {
+router.put("/:id",authMiddleware, async (req, res) => {
   try {
     const product = await Product.findOneAndUpdate(
       { id: req.params.id },
@@ -60,7 +60,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // DELETE /api/products/:id
-router.delete("/:id", async (req, res) => {
+router.delete("/:id",authMiddleware, async (req, res) => {
   try {
     const product = await Product.findOneAndDelete({ id: req.params.id });
     if (!product) return res.status(404).json({ error: "Product not found" });

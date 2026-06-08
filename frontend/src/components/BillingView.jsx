@@ -276,7 +276,7 @@ export default function BillingView({
 
           {customerForm.phone && (
             <button onClick={() => {
-              const msg = `*MANISH DAIRY*\nGanga Nagar, Meerut\n\n${cart.map((i) => `${i.name} x${formatQty(i.qty, i.unit)} = ${formatINR(i.total)}`).join("\n")}\n\nSubtotal: ${formatINR(cartSubtotal)}${discount > 0 ? `\nDiscount (${discount}%): -${formatINR(discountAmt)}` : ""}\n*TOTAL: ${formatINR(cartTotal)}*\n\nThank you! 🥛`;
+              const msg = `*MANISH DAIRY*\nJail Chungi, Meerut\n\n${cart.map((i) => `${i.name} x${formatQty(i.qty, i.unit)} = ${formatINR(i.total)}`).join("\n")}\n\nSubtotal: ${formatINR(cartSubtotal)}${discount > 0 ? `\nDiscount (${discount}%): -${formatINR(discountAmt)}` : ""}\n*TOTAL: ${formatINR(cartTotal)}*\n\nThank you! 🥛`;
               window.open(`https://wa.me/91${customerForm.phone}?text=${encodeURIComponent(msg)}`);
             }} style={{ marginTop: 8, width: "100%", padding: "11px", borderRadius: 10, background: "#25d366", color: "#fff", border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
               <Icon name="whatsapp" size={14} /> Send on WhatsApp

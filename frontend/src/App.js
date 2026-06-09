@@ -170,7 +170,10 @@ export default function App() {
   const cartTotal = cartSubtotal - discountAmt;
 
   // ─── CHECKOUT ───────────────────────────────────────────────────────────────
-  const checkoutBill = async (paymentMode = "CASH") => {
+  const checkoutBill = async (paymentMode = "CASH", customDate = null) => {
+    console.log("=== DEBUG ===");
+    console.log("customDate received:", customDate);
+    console.log("date being sent:", customDate ? new Date(customDate + "T12:00:00+05:30").toISOString() : new Date().toISOString());
     if (!cart.length) return;
 
     // Editing mode
@@ -188,7 +191,7 @@ export default function App() {
 
     const bill = {
       id: "MD" + Date.now(),
-      date: new Date().toISOString(),
+      date: customDate ? new Date(customDate + "T12:00:00+05:30").toISOString() : new Date().toISOString(),
       items: cart,
       subtotal: Math.round(cartSubtotal),
       discountPct: discount,

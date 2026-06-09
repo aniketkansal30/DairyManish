@@ -1,9 +1,7 @@
 import { formatDate, formatTime, formatQty } from "./helpers";
 
-// ─── BILL PRINT ───────────────────────────────────────────────────────────────
 export function printBill(bill) {
-  const w = window.open("", "_blank", "width=302,height=600");
-  w.document.write(`<!DOCTYPE html><html><head><style>
+  const printContent = `<!DOCTYPE html><html><head><style>
     @page { margin: 0; size: 80mm auto; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Courier New', monospace; font-size: 13px; width: 80mm; padding: 4mm; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -28,11 +26,11 @@ export function printBill(bill) {
 
   <div class="center bold big">MANISH DAIRY</div>
   <div class="center shop-sub">SWEETS AND NAMKEEN</div>
-  <div class="center shop-addr">24/1, Basant Vihar, Jail Chungi, Meerut</div>
+  <div class="center shop-addr">Jail Chungi, Meerut</div>
   <div class="divider-solid"></div>
 
   <div class="row"><span>Date:</span><span>${formatDate(bill.date)} ${formatTime(bill.date)}</span></div>
-  <div class="row"><span>Token No:</span><span>${bill.id.slice(-3)}</span></div>
+  <div class="row"><span>Token No:</span><span>${bill.id}</span></div>
   ${bill.customer?.name ? `<div class="row"><span>Customer:</span><span>${bill.customer.name}</span></div>` : ""}
   ${bill.customer?.phone ? `<div class="row"><span>Phone:</span><span>${bill.customer.phone}</span></div>` : ""}
 
@@ -44,42 +42,48 @@ export function printBill(bill) {
   </div>
   <div class="divider-dash"></div>
 
-  ${bill.items
-    .map(
-      (i) => `
+  ${bill.items.map(i => `
     <div class="row-3">
       <span class="col-name">${i.name}</span>
       <span class="col-qty">${formatQty(i.qty, i.unit)}</span>
       <span class="col-amt">₹${Math.round(i.total)}</span>
     </div>
-  `
-    )
-    .join("")}
+  `).join("")}
 
   <div class="divider-dash"></div>
-  ${
-    bill.discountPct > 0
-      ? `
-   <div class="row"><span>Subtotal</span><span>₹${Math.round(bill.subtotal)}</span></div>
+  ${bill.discountPct > 0 ? `
+    <div class="row"><span>Subtotal</span><span>₹${Math.round(bill.subtotal)}</span></div>
     <div class="row bold"><span>Discount (${bill.discountPct}%)</span><span>-₹${Math.round(bill.discountAmt)}</span></div>
-  `
-      : ""
-  }
+  ` : ""}
   <div class="divider-solid"></div>
   <div class="total-row"><span>TOTAL</span><span>₹${Math.round(bill.total)}</span></div>
   <div class="divider-solid"></div>
   <div class="payment-row"><span>Payment:</span><span>${bill.paymentMode || "CASH"}</span></div>
 
   <div class="divider-dash"></div>
-  <div class="footer">Thank you!! Please Visit Again!!</div>
+  <div class="footer">Thank you!! Please Visit Again!</div>
   <br/>
-  </body></html>`);
-  w.document.close();
-  w.onload = () => {
-    w.print();
-    w.close();
-  };
-  setTimeout(() => {
-    if (!w.closed) { w.print(); w.close(); }
-  }, 800);
+  </body></html>`;
+
+  // Method 1: Try popup first
+  const w = window.open("", "_blank", "width=302,height=600");
+  
+  if (w && !w.closed) {
+    // Popup allowed ✅
+    w.document.write(printContent);
+    w.document.close();
+   setTimeout(() => { w.print(); w.close(); }, 100);
+  } else {
+    // Popup blocked — use iframe fallback ✅
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:302px;height:600px;border:none;";
+    document.body.appendChild(iframe);
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(printContent);
+    iframe.contentDocument.close();
+   setTimeout(() => {
+  iframe.contentWindow.print();
+  setTimeout(() => document.body.removeChild(iframe), 500);
+}, 100);
+  }
 }

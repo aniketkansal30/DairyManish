@@ -6,7 +6,7 @@ const Bill = require("../models/Bill");
 // ─── Helper: IST date range ───────────────────────────────────────────────────
 function istRange(dateStr, endDateStr) {
   const start = new Date(dateStr + "T00:00:00+05:30");
-  const end   = new Date((endDateStr || dateStr) + "T23:59:59+05:30");
+  const end = new Date((endDateStr || dateStr) + "T23:59:59+05:30");
   return { $gte: start, $lte: end };
 }
 
@@ -37,7 +37,7 @@ router.get("/", async (req, res) => {
 
     // ✅ Pagination — default 50, max 200
     const limit = Math.min(parseInt(req.query.limit) || 50, 10000);
-    const skip  = parseInt(req.query.skip) || 0;
+    const skip = parseInt(req.query.skip) || 0;
 
     // ✅ lean() — plain JS object, ~30% faster, less memory
     const [bills, total] = await Promise.all([
@@ -52,21 +52,23 @@ router.get("/", async (req, res) => {
 });
 
 // ─── POST /api/bills ──────────────────────────────────────────────────────────
-router.post("/", authMiddleware,async (req, res) => {
+router.post("/", authMiddleware, async (req, res) => {
+  console.log("RECEIVED DATE:", req.body.date);
+  console.log("FULL BODY:", JSON.stringify(req.body)); 
   try {
     const items = Array.isArray(req.body.items) ? req.body.items : [];
 
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
-    const cost     = items.reduce((s, i) => s + i.cost  * i.qty, 0);
+    const cost = items.reduce((s, i) => s + i.cost * i.qty, 0);
 
     const discountPct = Number(req.body.discountPct) || 0;
     const discountAmt = (subtotal * discountPct) / 100;
-    const total  = subtotal - discountAmt;
+    const total = subtotal - discountAmt;
     const profit = total - cost;
 
     const bill = await Bill.create({
-      id: "MD" + Date.now(),
-      date: new Date(),
+      id: req.body.id || "MD" + Date.now(),
+      date: req.body.date ? new Date(req.body.date) : new Date(),
       items,
       subtotal,
       discountPct,
@@ -77,7 +79,7 @@ router.post("/", authMiddleware,async (req, res) => {
       discountApplied: false,
       paymentMode: req.body.paymentMode || "CASH",
       customer: {
-        name:  req.body.customer?.name  || "",
+        name: req.body.customer?.name || "",
         phone: req.body.customer?.phone || "",
       },
     });
@@ -91,7 +93,7 @@ router.post("/", authMiddleware,async (req, res) => {
 
 // ─── POST /api/bills/apply-discount ──────────────────────────────────────────
 // ✅ FIXED: Ek hi bulkWrite query — N individual updates nahi
-router.post("/apply-discount", authMiddleware,async (req, res) => {
+router.post("/apply-discount", authMiddleware, async (req, res) => {
   try {
     const { discount } = req.body;
     const d = parseFloat(discount) / 100;
@@ -105,15 +107,15 @@ router.post("/apply-discount", authMiddleware,async (req, res) => {
     const bulkOps = bills.map((bill) => {
       const newItems = bill.items.map((item) => {
         const newPrice = +(item.price * (1 - d)).toFixed(2);
-        const newCost  = +(item.cost  * (1 - d)).toFixed(2);
+        const newCost = +(item.cost * (1 - d)).toFixed(2);
         return { ...item, price: newPrice, cost: newCost, total: +(newPrice * item.qty).toFixed(2) };
       });
 
-      const newSubtotal  = +newItems.reduce((s, i) => s + i.total,        0).toFixed(2);
+      const newSubtotal = +newItems.reduce((s, i) => s + i.total, 0).toFixed(2);
       const newCostTotal = +newItems.reduce((s, i) => s + i.cost * i.qty, 0).toFixed(2);
-      const newDiscAmt   = +(newSubtotal * (bill.discountPct || 0) / 100).toFixed(2);
-      const newTotal     = +(newSubtotal - newDiscAmt).toFixed(2);
-      const newProfit    = +(newTotal - newCostTotal).toFixed(2);
+      const newDiscAmt = +(newSubtotal * (bill.discountPct || 0) / 100).toFixed(2);
+      const newTotal = +(newSubtotal - newDiscAmt).toFixed(2);
+      const newProfit = +(newTotal - newCostTotal).toFixed(2);
 
       return {
         updateOne: {
@@ -144,7 +146,7 @@ router.post("/apply-discount", authMiddleware,async (req, res) => {
 
 // ─── GET /api/bills/analytics ─────────────────────────────────────────────────
 // ✅ FULLY REWRITTEN — MongoDB aggregation, zero JS-side number crunching
-router.get("/analytics",async (req, res) => {
+router.get("/analytics", async (req, res) => {
   try {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -166,8 +168,8 @@ router.get("/analytics",async (req, res) => {
               },
             },
             revenue: { $sum: "$total" },
-            profit:  { $sum: "$profit" },
-            bills:   { $sum: 1 },
+            profit: { $sum: "$profit" },
+            bills: { $sum: 1 },
           },
         },
         { $sort: { _id: 1 } },
@@ -180,10 +182,10 @@ router.get("/analytics",async (req, res) => {
         { $unwind: "$items" },
         {
           $group: {
-            _id:     "$items.id",
-            name:    { $first: "$items.name" },
+            _id: "$items.id",
+            name: { $first: "$items.name" },
             revenue: { $sum: "$items.total" },
-            qty:     { $sum: "$items.qty" },
+            qty: { $sum: "$items.qty" },
           },
         },
         { $sort: { revenue: -1 } },
@@ -197,7 +199,7 @@ router.get("/analytics",async (req, res) => {
         { $unwind: "$items" },
         {
           $group: {
-            _id:     { $ifNull: ["$items.category", "Other"] },
+            _id: { $ifNull: ["$items.category", "Other"] },
             revenue: { $sum: "$items.total" },
           },
         },
@@ -209,10 +211,10 @@ router.get("/analytics",async (req, res) => {
         { $match: { date: { $gte: thirtyDaysAgo } } },
         {
           $group: {
-            _id:     null,
+            _id: null,
             revenue: { $sum: "$total" },
-            profit:  { $sum: "$profit" },
-            bills:   { $sum: 1 },
+            profit: { $sum: "$profit" },
+            bills: { $sum: 1 },
           },
         },
         { $project: { _id: 0, revenue: 1, profit: 1, bills: 1 } },
@@ -225,10 +227,10 @@ router.get("/analytics",async (req, res) => {
     );
 
     res.json({
-      daily:       dailyRaw,
+      daily: dailyRaw,
       topProducts,
       categories,
-      totals:      totalsRaw[0] || { revenue: 0, profit: 0, bills: 0 },
+      totals: totalsRaw[0] || { revenue: 0, profit: 0, bills: 0 },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -236,7 +238,7 @@ router.get("/analytics",async (req, res) => {
 });
 
 // ─── DELETE /api/bills/all ────────────────────────────────────────────────────
-router.delete("/all",authMiddleware, async (req, res) => {
+router.delete("/all", authMiddleware, async (req, res) => {
   try {
     const { confirmCode } = req.body;
     if (confirmCode !== process.env.DELETE_ALL_CODE)
@@ -254,13 +256,13 @@ router.put("/:id", async (req, res) => {
     const bill = await Bill.findOne({ id: req.params.id });
     if (!bill) return res.status(404).json({ error: "Bill not found" });
 
-    const items       = Array.isArray(req.body.items) ? req.body.items : bill.items;
-    const subtotal    = items.reduce((s, i) => s + i.price * i.qty, 0);
-    const cost        = items.reduce((s, i) => s + i.cost  * i.qty, 0);
+    const items = Array.isArray(req.body.items) ? req.body.items : bill.items;
+    const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+    const cost = items.reduce((s, i) => s + i.cost * i.qty, 0);
     const discountPct = Number(req.body.discountPct) ?? bill.discountPct;
     const discountAmt = (subtotal * discountPct) / 100;
-    const total       = subtotal - discountAmt;
-    const profit      = total - cost;
+    const total = subtotal - discountAmt;
+    const profit = total - cost;
 
     Object.assign(bill, { items, subtotal, discountPct, discountAmt, total, cost, profit });
     await bill.save();

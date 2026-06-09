@@ -20,8 +20,8 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
   useEffect(() => {
     async function fetchBills() {
       let path = "/bills";
-      const todayIST = new Date().toLocaleDateString("en-CA");
-      const yesterdayIST = new Date(Date.now() - 86400000).toLocaleDateString("en-CA");
+      const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const yesterdayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000 - 86400000).toISOString().slice(0, 10);
 
       if (filter === "today") path = `/bills?date=${todayIST}&limit=10000`;
       else if (filter === "yesterday") path = `/bills?date=${yesterdayIST}&limit=10000`;

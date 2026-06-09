@@ -22,6 +22,8 @@ export default function BillingView({
   customerForm, setCustomerForm, checkoutBill, dbCats,
   editingBillId, onCancelEdit,
 }) {
+  const [customDate, setCustomDate] = useState("");
+const [showDatePicker, setShowDatePicker] = useState(false);
   const [popup, setPopup] = useState(null);
   const [isPrinting, setIsPrinting] = useState(false);
   const [paymentMode, setPaymentMode] = useState("CASH");
@@ -165,6 +167,24 @@ export default function BillingView({
           ))}
         </div>
       )}
+      {/* Custom Date (optional) */}
+      <div style={{ padding: "8px 14px 0 14px", flexShrink: 0 }}>
+  <label 
+    onClick={() => { setShowDatePicker(!showDatePicker); setCustomDate(""); }}
+    style={{ cursor: "pointer", fontSize: "12px", color: showDatePicker ? "#f59e0b" : "#888" }}
+  >
+    📅 {showDatePicker ? "Custom Date ON ✓" : "Past date bill?"}
+  </label>
+  {showDatePicker && (
+    <input
+      type="date"
+      value={customDate}
+      max={new Date().toISOString().split("T")[0]}
+      onChange={e => setCustomDate(e.target.value)}
+      style={{ display: "block", marginTop: "4px", padding: "4px 8px", borderRadius: "6px", border: "1px solid #f59e0b", background: "#1a1a1a", color: "white", fontSize: "13px" }}
+    />
+  )}
+</div>
 
       {/* Customer form */}
       <div style={{ padding: "10px 14px", borderBottom: "1px solid #f0ebe4", display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
@@ -266,7 +286,11 @@ export default function BillingView({
             <button onClick={() => {
               if (isPrinting) return;
               setIsPrinting(true);
-              checkoutBill(splitMode ? `SPLIT(Cash:${cashAmt||0} UPI:${upiAmt||0})` : paymentMode);
+              console.log("customDate being passed:", customDate);
+              checkoutBill(splitMode ? `SPLIT(Cash:${cashAmt||0} UPI:${upiAmt||0})` : paymentMode, customDate || null);
+              setPaymentMode("CASH");
+              setCustomDate("");
+              setShowDatePicker(false);
               setPaymentMode("CASH");
               setTimeout(() => setIsPrinting(false), 5000);
             }} style={{ flex: 1, height: 46, borderRadius: 10, background: "#1a1310", color: "#f59e0b", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>

@@ -64,7 +64,7 @@ export default function AnalyticsView({ bills = [] }) {
   const { dailyData, maxSales } = useMemo(() => {
     const dailyMap = {};
     monthBills.forEach((b) => {
-      const d = b.date?.slice(0, 10);
+      const d = b.date ? new Date(new Date(b.date).toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA") : "";
       if (!dailyMap[d]) dailyMap[d] = { sales: 0, profit: 0, count: 0 };
       dailyMap[d].sales += b.total;
       dailyMap[d].profit += b.profit;

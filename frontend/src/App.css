@@ -36,3 +36,12 @@
     transform: rotate(360deg);
   }
 }
+html, body, #root {
+  width: 100%;
+  min-height: 100vh;
+  zoom: 1 !important;
+}
+
+* {
+  box-sizing: border-box;
+}

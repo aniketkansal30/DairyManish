@@ -16,6 +16,10 @@ code {
 }
 
 /* ── RESPONSIVE SCALING ── */
+/* 1920px+ large monitor */
+@media (min-width: 1920px) {
+  html { font-size: 20px; }
+}
 
 /* Large screens (1400px+) - normal */
 @media (min-width: 1400px) {

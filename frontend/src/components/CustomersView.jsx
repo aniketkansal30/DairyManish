@@ -14,18 +14,37 @@ function useIsMobile() {
   return isMobile;
 }
 
-export default function CustomersView({ customers, setCart, setView }) {
+export default function CustomersView({ customers: initialCustomers, setCart, setView }) {
   const [search, setSearch]     = useState("");
+  const [localCustomers, setLocalCustomers] = useState(initialCustomers);
   const [selected, setSelected] = useState(null);
   const [customerBills, setCustomerBills] = useState([]);
   const [billsLoading, setBillsLoading] = useState(false);
   const mobile = useIsMobile();
 
-  const filtered = customers.filter(
-    (c) =>
-      c.name?.toLowerCase().includes(search.toLowerCase()) ||
-      c.phone?.includes(search)
-  );
+  // Sync with initialCustomers when it loads or changes
+  useEffect(() => {
+    setLocalCustomers(initialCustomers);
+  }, [initialCustomers]);
+
+  // Dynamic server-side search when search query changes (debounced)
+  useEffect(() => {
+    if (!search.trim()) {
+      setLocalCustomers(initialCustomers);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiCall(`/customers?search=${encodeURIComponent(search.trim())}`);
+        setLocalCustomers(res || []);
+      } catch (err) {
+        console.error("Search customers error:", err);
+      }
+    }, 300); // 300ms debounce
+    return () => clearTimeout(timer);
+  }, [search, initialCustomers]);
+
+  const filtered = localCustomers;
 
   // ─── Fetch selected customer's bills on demand ───────────────────────────
   useEffect(() => {

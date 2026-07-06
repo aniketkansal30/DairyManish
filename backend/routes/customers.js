@@ -13,9 +13,9 @@ router.get("/", async (req, res) => {
       const regex = new RegExp(req.query.search, "i");
       customers = await Customer.find({
         $or: [{ name: regex }, { phone: regex }],
-      }).sort({ updatedAt: -1 });
+      }).sort({ updatedAt: -1 }).limit(100).lean();
     } else {
-      customers = await Customer.find().sort({ updatedAt: -1 });
+      customers = await Customer.find().sort({ updatedAt: -1 }).limit(250).lean();
     }
 
     res.json(customers);

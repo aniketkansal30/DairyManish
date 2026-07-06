@@ -21,6 +21,16 @@ export default function App() {
   const [view, setView] = useState("billing");
   const [tapCount, setTapCount] = useState(0);
 
+  // Handle automatic session logout on expired/invalid token
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      setToken(null);
+      alert("Aapka session expire ho gaya hai. Kripya fir se login karein (Your session has expired. Please login again).");
+    };
+    window.addEventListener("auth_expired", handleAuthExpired);
+    return () => window.removeEventListener("auth_expired", handleAuthExpired);
+  }, []);
+
   // Admin shortcut: Ctrl+Shift+D → apply global discount
   useEffect(() => {
     
@@ -121,6 +131,27 @@ export default function App() {
     }
     loadAll();
   }, []);
+
+  // ─── CUSTOMER AUTO-COMPLETE ──────────────────────────────────────────────────
+  useEffect(() => {
+    const phone = customerForm.phone?.trim();
+    if (phone && phone.length >= 10) {
+      const localMatch = customers.find(c => c.phone === phone);
+      if (localMatch) {
+        if (!customerForm.name) {
+          setCustomerForm(prev => ({ ...prev, name: localMatch.name }));
+        }
+      } else {
+        apiCall(`/customers/${phone}`)
+          .then(res => {
+            if (res && res.name && !customerForm.name) {
+              setCustomerForm(prev => ({ ...prev, name: res.name }));
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, [customerForm.phone, customers]);
 
   // ─── FILTERED PRODUCTS ──────────────────────────────────────────────────────
   const filtered = useMemo(

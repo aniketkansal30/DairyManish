@@ -7,7 +7,7 @@ const Product = require("../models/Product");
 // GET /api/products
 router.get("/", async (req, res) => {
   try {
-    let products = await Product.find();
+    let products = await Product.find().lean();
 
     
 

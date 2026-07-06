@@ -64,7 +64,7 @@ router.post("/", authMiddleware, async (req, res) => {
     const discountPct = Number(req.body.discountPct) || 0;
     const discountAmt = (subtotal * discountPct) / 100;
     const total = subtotal - discountAmt;
-    const profit = total - cost;
+    const profit = 0; // Cost is equal to selling price, profit is 0% as requested
 
     // Check if a bill with this ID already exists (idempotency / retry handling)
     if (req.body.id) {
@@ -392,7 +392,7 @@ router.put("/:id", async (req, res) => {
     const discountPct = Number(req.body.discountPct) ?? bill.discountPct;
     const discountAmt = (subtotal * discountPct) / 100;
     const total = subtotal - discountAmt;
-    const profit = total - cost;
+    const profit = 0; // Cost is equal to selling price, profit is 0% as requested
 
     Object.assign(bill, { items, subtotal, discountPct, discountAmt, total, cost, profit });
     await bill.save();

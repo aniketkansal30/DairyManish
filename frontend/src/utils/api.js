@@ -17,7 +17,12 @@ export async function apiCall(path, method = "GET", body = null) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Server error" }));
-    throw new Error(err.error || `HTTP ${res.status}`);
+    const errMsg = err.error || `HTTP ${res.status}`;
+    if (res.status === 401 || errMsg === "Invalid or expired token" || errMsg === "Login required" || errMsg.toLowerCase().includes("token")) {
+      localStorage.removeItem("dairy_token");
+      window.dispatchEvent(new Event("auth_expired"));
+    }
+    throw new Error(errMsg);
   }
 
   return res.json();

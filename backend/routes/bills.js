@@ -66,8 +66,17 @@ router.post("/", authMiddleware, async (req, res) => {
     const total = subtotal - discountAmt;
     const profit = total - cost;
 
+    // Check if a bill with this ID already exists (idempotency / retry handling)
+    if (req.body.id) {
+      const existing = await Bill.findOne({ id: req.body.id });
+      if (existing) {
+        console.warn(`⚠️ Bill with ID ${req.body.id} already exists. Returning existing bill (idempotency).`);
+        return res.json(existing);
+      }
+    }
+
     const bill = await Bill.create({
-      id: req.body.id || "MD" + Date.now(),
+      id: req.body.id || "MD" + Date.now() + Math.floor(100 + Math.random() * 900),
       date: req.body.date ? new Date(req.body.date) : new Date(),
       items,
       subtotal,
@@ -144,93 +153,214 @@ router.post("/apply-discount", authMiddleware, async (req, res) => {
   }
 });
 
+// ─── GET /api/bills/sales-summary ─────────────────────────────────────────────
+router.get("/sales-summary", async (req, res) => {
+  try {
+    const filter = {};
+
+    if (req.query.date && req.query.endDate) {
+      filter.date = istRange(req.query.date, req.query.endDate);
+    } else if (req.query.date) {
+      filter.date = istRange(req.query.date);
+    }
+
+    if (req.query.month) {
+      const [year, month] = req.query.month.split("-").map(Number);
+      const lastDay = new Date(year, month, 0).getDate();
+      filter.date = istRange(
+        `${year}-${String(month).padStart(2, "0")}-01`,
+        `${year}-${String(month).padStart(2, "0")}-${lastDay}`
+      );
+    }
+
+    const [totals] = await Bill.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          totalSales: { $sum: "$total" },
+          totalProfit: { $sum: "$profit" },
+          totalDiscount: { $sum: { $ifNull: ["$discountAmt", 0] } },
+          billsCount: { $sum: 1 },
+          cashSales: {
+            $sum: {
+              $cond: [
+                { $eq: [{ $ifNull: ["$paymentMode", "CASH"] }, "CASH"] },
+                "$total",
+                0
+              ]
+            }
+          },
+          cashCount: {
+            $sum: {
+              $cond: [
+                { $eq: [{ $ifNull: ["$paymentMode", "CASH"] }, "CASH"] },
+                1,
+                0
+              ]
+            }
+          },
+          upiSales: {
+            $sum: {
+              $cond: [
+                { $eq: ["$paymentMode", "UPI"] },
+                "$total",
+                0
+              ]
+            }
+          },
+          upiCount: {
+            $sum: {
+              $cond: [
+                { $eq: ["$paymentMode", "UPI"] },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      }
+    ]);
+
+    res.json(totals || {
+      totalSales: 0,
+      totalProfit: 0,
+      totalDiscount: 0,
+      billsCount: 0,
+      cashSales: 0,
+      cashCount: 0,
+      upiSales: 0,
+      upiCount: 0
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /api/bills/item-report ───────────────────────────────────────────────
+router.get("/item-report", async (req, res) => {
+  try {
+    const { date } = req.query;
+    const filter = {};
+    if (date) {
+      filter.date = istRange(date);
+    }
+
+    const report = await Bill.aggregate([
+      { $match: filter },
+      { $unwind: "$items" },
+      {
+        $group: {
+          _id: "$items.name",
+          qty: { $sum: "$items.qty" },
+          revenue: { $sum: "$items.total" },
+          unit: { $first: "$items.unit" },
+          category: { $first: { $ifNull: ["$items.category", "Other"] } }
+        }
+      },
+      { $sort: { revenue: -1 } }
+    ]);
+
+    res.json(report.map(r => ({
+      name: r._id,
+      qty: r.qty,
+      revenue: r.revenue,
+      unit: r.unit,
+      category: r.category
+    })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Helper for today range in IST
+function getTodayISTRange() {
+  const now = new Date();
+  const istStr = new Date(now.getTime() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return istRange(istStr);
+}
+
 // ─── GET /api/bills/analytics ─────────────────────────────────────────────────
-// ✅ FULLY REWRITTEN — MongoDB aggregation, zero JS-side number crunching
 router.get("/analytics", async (req, res) => {
   try {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    thirtyDaysAgo.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
 
-    // ── Run all 4 aggregations in PARALLEL ──────────────────────────────────
-    const [dailyRaw, topProducts, categoryRaw, totalsRaw] = await Promise.all([
+    const lastDay = new Date(currentYear, currentMonth, 0).getDate();
+    const monthStart = new Date(`${currentYear}-${String(currentMonth).padStart(2, "0")}-01T00:00:00+05:30`);
+    const monthEnd = new Date(`${currentYear}-${String(currentMonth).padStart(2, "0")}-${lastDay}T23:59:59+05:30`);
 
-      // 1. Daily revenue + profit (last 30 days)
+    const todayFilter = { date: getTodayISTRange() };
+    const monthFilter = { date: { $gte: monthStart, $lte: monthEnd } };
+
+    const [todayRaw, allTimeRaw, dailyRaw, topItemsRaw, recentRaw] = await Promise.all([
       Bill.aggregate([
-        { $match: { date: { $gte: thirtyDaysAgo } } },
+        { $match: todayFilter },
+        {
+          $group: {
+            _id: null,
+            revenue: { $sum: "$total" },
+            profit: { $sum: "$profit" },
+            bills: { $sum: 1 }
+          }
+        }
+      ]),
+
+      Bill.aggregate([
+        {
+          $group: {
+            _id: null,
+            revenue: { $sum: "$total" },
+            profit: { $sum: "$profit" },
+            bills: { $sum: 1 }
+          }
+        }
+      ]),
+
+      Bill.aggregate([
+        { $match: monthFilter },
         {
           $group: {
             _id: {
               $dateToString: {
                 format: "%Y-%m-%d",
                 date: "$date",
-                timezone: "Asia/Kolkata",
-              },
+                timezone: "Asia/Kolkata"
+              }
             },
             revenue: { $sum: "$total" },
             profit: { $sum: "$profit" },
-            bills: { $sum: 1 },
-          },
+            count: { $sum: 1 }
+          }
         },
         { $sort: { _id: 1 } },
-        { $project: { _id: 0, date: "$_id", revenue: 1, profit: 1, bills: 1 } },
+        { $project: { _id: 0, date: "$_id", sales: "$revenue", profit: 1, count: 1 } }
       ]),
 
-      // 2. Top 10 products by revenue (last 30 days)
       Bill.aggregate([
-        { $match: { date: { $gte: thirtyDaysAgo } } },
         { $unwind: "$items" },
         {
           $group: {
-            _id: "$items.id",
-            name: { $first: "$items.name" },
+            _id: "$items.name",
             revenue: { $sum: "$items.total" },
-            qty: { $sum: "$items.qty" },
-          },
+            qty: { $sum: "$items.qty" }
+          }
         },
         { $sort: { revenue: -1 } },
-        { $limit: 10 },
-        { $project: { _id: 0, id: "$_id", name: 1, revenue: 1, qty: 1 } },
+        { $limit: 8 },
+        { $project: { _id: 0, name: "$_id", revenue: 1, qty: 1 } }
       ]),
 
-      // 3. Category-wise revenue (last 30 days)
-      Bill.aggregate([
-        { $match: { date: { $gte: thirtyDaysAgo } } },
-        { $unwind: "$items" },
-        {
-          $group: {
-            _id: { $ifNull: ["$items.category", "Other"] },
-            revenue: { $sum: "$items.total" },
-          },
-        },
-        { $project: { _id: 0, category: "$_id", revenue: 1 } },
-      ]),
-
-      // 4. Overall totals (last 30 days)
-      Bill.aggregate([
-        { $match: { date: { $gte: thirtyDaysAgo } } },
-        {
-          $group: {
-            _id: null,
-            revenue: { $sum: "$total" },
-            profit: { $sum: "$profit" },
-            bills: { $sum: 1 },
-          },
-        },
-        { $project: { _id: 0, revenue: 1, profit: 1, bills: 1 } },
-      ]),
+      Bill.find({}).sort({ date: -1 }).limit(20).lean()
     ]);
 
-    // Convert category array → object (same shape as before)
-    const categories = Object.fromEntries(
-      categoryRaw.map(({ category, revenue }) => [category, revenue])
-    );
-
     res.json({
+      today: todayRaw[0] || { revenue: 0, profit: 0, bills: 0 },
+      allTime: allTimeRaw[0] || { revenue: 0, profit: 0, bills: 0 },
       daily: dailyRaw,
-      topProducts,
-      categories,
-      totals: totalsRaw[0] || { revenue: 0, profit: 0, bills: 0 },
+      topItems: topItemsRaw,
+      recent: recentRaw
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

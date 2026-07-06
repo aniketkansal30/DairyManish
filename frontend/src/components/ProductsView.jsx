@@ -193,14 +193,14 @@ export default function ProductsView({ products, onSave, onDelete, dbCats, setDb
     <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "320px 1fr", gap: 24, alignItems: "start" }}>
 
       {/* ─── Desktop: Form always visible ─── */}
-      {!mobile && <FormPanel />}
+      {!mobile && FormPanel()}
 
       {/* ─── Mobile: Form as overlay ─── */}
       {mobile && showForm && (
         <>
           <div onClick={() => { setShowForm(false); setEditing(null); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200 }} />
           <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 201, maxHeight: "90vh", overflowY: "auto", borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 40px rgba(0,0,0,0.2)" }}>
-            <FormPanel />
+            {FormPanel()}
           </div>
         </>
       )}

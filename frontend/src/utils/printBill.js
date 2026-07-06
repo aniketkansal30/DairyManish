@@ -65,25 +65,15 @@ export function printBill(bill) {
   <br/>
   </body></html>`;
 
-  // Method 1: Try popup first
-  const w = window.open("", "_blank", "width=302,height=600");
-  
-  if (w && !w.closed) {
-    // Popup allowed ✅
-    w.document.write(printContent);
-    w.document.close();
-   setTimeout(() => { w.print(); w.close(); }, 100);
-  } else {
-    // Popup blocked — use iframe fallback ✅
-    const iframe = document.createElement("iframe");
-    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:302px;height:600px;border:none;";
-    document.body.appendChild(iframe);
-    iframe.contentDocument.open();
-    iframe.contentDocument.write(printContent);
-    iframe.contentDocument.close();
-   setTimeout(() => {
-  iframe.contentWindow.print();
-  setTimeout(() => document.body.removeChild(iframe), 500);
-}, 100);
-  }
+  // Always use the invisible iframe method for direct print (no preview popup window)
+  const iframe = document.createElement("iframe");
+  iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:302px;height:600px;border:none;";
+  document.body.appendChild(iframe);
+  iframe.contentDocument.open();
+  iframe.contentDocument.write(printContent);
+  iframe.contentDocument.close();
+  setTimeout(() => {
+    iframe.contentWindow.print();
+    setTimeout(() => document.body.removeChild(iframe), 1000);
+  }, 150);
 }

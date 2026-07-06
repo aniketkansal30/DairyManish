@@ -2,101 +2,97 @@ import Icon from "./Icon";
 import { CAT_COLORS } from "../utils/constants";
 import { formatINR, formatDate, formatTime, formatQty } from "../utils/helpers";
 import { printBill } from "../utils/printBill";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { apiCall } from "../utils/api";
 
-export default function AnalyticsView({ bills = [] }) {
+export default function AnalyticsView() {
   const [selectedDate, setSelectedDate] = useState(
     () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA")
   );
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const [reportData, setReportData] = useState([]);
+  const [reportLoading, setReportLoading] = useState(false);
 
   const isMobile = window.innerWidth < 768;
 
-  const istDate = (isoStr) =>
-    isoStr ? new Date(new Date(isoStr).toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA") : "";
+  // ─── Fetch overall analytics on mount ──────────────────────────────────────
+  useEffect(() => {
+    async function fetchAnalytics() {
+      setLoading(true);
+      try {
+        const res = await apiCall("/bills/analytics");
+        setAnalytics(res);
+      } catch (err) {
+        console.error("Analytics fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchAnalytics();
+  }, []);
 
-  const todayIST = useMemo(() =>
-    new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA")
-  , []);
+  // ─── Fetch date-wise item report ───────────────────────────────────────────
+  useEffect(() => {
+    async function fetchReport() {
+      setReportLoading(true);
+      try {
+        const res = await apiCall(`/bills/item-report?date=${selectedDate}`);
+        setReportData(res || []);
+      } catch (err) {
+        console.error("Item report fetch error:", err);
+      } finally {
+        setReportLoading(false);
+      }
+    }
+    fetchReport();
+  }, [selectedDate]);
 
-  const filteredBills = useMemo(() => {
-    if (!selectedDate) return bills;
-    return bills.filter((b) => b.date && istDate(b.date) === selectedDate);
-  }, [bills, selectedDate]);
+  // Date-wise totals from report data
+  const filteredTotal = useMemo(() => reportData.reduce((s, i) => s + i.revenue, 0), [reportData]);
 
-  const filteredItemMap = useMemo(() => {
-    const map = {};
-    filteredBills.forEach((b) =>
-      b.items?.forEach((i) => {
-        if (!map[i.name]) map[i.name] = { qty: 0, revenue: 0, unit: i.unit, category: i.category || "Other" };
-        map[i.name].qty += i.qty;
-        map[i.name].revenue += i.total;
-      })
+  const allCategories = useMemo(() => {
+    const cats = new Set(reportData.map(i => i.category || "Other"));
+    return ["All", ...Array.from(cats).sort()];
+  }, [reportData]);
+
+  const filteredItemData = useMemo(() => {
+    return reportData
+      .filter(i => selectedCategory === "All" || (i.category || "Other") === selectedCategory)
+      .sort((a, b) => b.revenue - a.revenue);
+  }, [reportData, selectedCategory]);
+
+  const maxSales = useMemo(() => {
+    if (!analytics || !analytics.daily || !analytics.daily.length) return 1;
+    return Math.max(...analytics.daily.map(d => d.sales), 1);
+  }, [analytics]);
+
+  const maxRev = useMemo(() => {
+    if (!analytics || !analytics.topItems || !analytics.topItems.length) return 1;
+    return Math.max(...analytics.topItems.map(i => i.revenue), 1);
+  }, [analytics]);
+
+  if (loading || !analytics) {
+    return (
+      <div style={{ textAlign: "center", padding: "100px 0", fontSize: 15, color: "#8a7e6e" }}>
+        ⏳ Loading Manish Dairy Analytics...
+      </div>
     );
-    return map;
-  }, [filteredBills]);
+  }
 
-  const allCategories = useMemo(() =>
-    ["All", ...new Set(Object.values(filteredItemMap).map(v => v.category).filter(Boolean).sort())]
-  , [filteredItemMap]);
-
-  const filteredItemData = useMemo(() =>
-    Object.entries(filteredItemMap)
-      .filter(([, v]) => selectedCategory === "All" || v.category === selectedCategory)
-      .sort(([, a], [, b]) => b.revenue - a.revenue)
-  , [filteredItemMap, selectedCategory]);
-
-  const filteredTotal = useMemo(() => filteredBills.reduce((s, b) => s + b.total, 0), [filteredBills]);
-
-  const { todayBills, monthBills, totalSales, totalProfit, todaySales, todayProfit } = useMemo(() => {
-    const todayBills = bills.filter((b) => istDate(b.date) === todayIST);
-    const monthBills = bills.filter((b) => istDate(b.date).slice(0, 7) === todayIST.slice(0, 7));
-    return {
-      todayBills,
-      monthBills,
-      totalSales: bills.reduce((s, b) => s + b.total, 0),
-      totalProfit: bills.reduce((s, b) => s + b.profit, 0),
-      todaySales: todayBills.reduce((s, b) => s + b.total, 0),
-      todayProfit: todayBills.reduce((s, b) => s + b.profit, 0),
-    };
-  }, [bills, todayIST]);
-
-  const { dailyData, maxSales } = useMemo(() => {
-    const dailyMap = {};
-    monthBills.forEach((b) => {
-      const d = b.date ? new Date(new Date(b.date).toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA") : "";
-      if (!dailyMap[d]) dailyMap[d] = { sales: 0, profit: 0, count: 0 };
-      dailyMap[d].sales += b.total;
-      dailyMap[d].profit += b.profit;
-      dailyMap[d].count++;
-    });
-    const dailyData = Object.entries(dailyMap).sort(([a], [b]) => a.localeCompare(b));
-    return { dailyData, maxSales: Math.max(...dailyData.map(([, v]) => v.sales), 1) };
-  }, [monthBills]);
-
-  const { topItems, maxRev } = useMemo(() => {
-    const itemMap = {};
-    bills.forEach((b) =>
-      b.items?.forEach((i) => {
-        if (!itemMap[i.name]) itemMap[i.name] = { qty: 0, revenue: 0, count: 0 };
-        itemMap[i.name].qty += i.qty;
-        itemMap[i.name].revenue += i.total;
-        itemMap[i.name].count++;
-      })
-    );
-    const topItems = Object.entries(itemMap).sort(([, a], [, b]) => b.revenue - a.revenue).slice(0, 8);
-    return { topItems, maxRev: Math.max(...topItems.map(([, v]) => v.revenue), 1) };
-  }, [bills]);
+  const { today, allTime, daily, topItems, recent } = analytics;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {/* KPI row */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 10 : 16 }}>
         {[
-          { label: "Today Sales", value: formatINR(todaySales), color: "#2563eb", sub: `${todayBills.length} bills` },
-          { label: "Today Profit", value: "₹0.00", color: "#16a34a", sub: `${todaySales > 0 ? Math.round((todayProfit / todaySales) * 100) : 0}% margin` },
-          { label: "Total Sales", value: formatINR(totalSales), color: "#7c3aed", sub: `${bills.length} bills ever` },
-          { label: "Total Profit", value: "₹0.00", color: "#ea580c", sub: `${totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0}% margin` },
+          { label: "Today Sales", value: formatINR(today.revenue), color: "#2563eb", sub: `${today.bills} bills today` },
+          { label: "Today Profit", value: formatINR(today.profit), color: "#16a34a", sub: `${today.revenue > 0 ? Math.round((today.profit / today.revenue) * 100) : 0}% margin` },
+          { label: "Total Sales", value: formatINR(allTime.revenue), color: "#7c3aed", sub: `${allTime.bills} bills total` },
+          { label: "Total Profit", value: formatINR(allTime.profit), color: "#ea580c", sub: `${allTime.revenue > 0 ? Math.round((allTime.profit / allTime.revenue) * 100) : 0}% margin` },
         ].map((k) => (
           <div key={k.label} style={{ background: "#fff", borderRadius: 16, padding: "20px", border: "1px solid #e5e0d8" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>{k.label}</div>
@@ -110,14 +106,14 @@ export default function AnalyticsView({ bills = [] }) {
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 14 : 24 }}>
         <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", padding: 20 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 16 }}>📅 This Month – Daily Sales</div>
-          {dailyData.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "30px 0" }}>No data yet</div>}
+          {daily.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "30px 0" }}>No data yet</div>}
           <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 160, overflowX: "auto" }}>
-            {dailyData.map(([date, v]) => (
-              <div key={date} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 28 }}>
+            {daily.map((v) => (
+              <div key={v.date} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 28 }}>
                 <div style={{ fontSize: 9, color: "#2563eb", fontWeight: 700 }}>₹{Math.round(v.sales / 100)}h</div>
                 <div style={{ width: 20, borderRadius: "4px 4px 0 0", background: "linear-gradient(to top, #2563eb, #60a5fa)", height: Math.max(4, (v.sales / maxSales) * 130) }} />
                 <div style={{ width: 20, borderRadius: "4px 4px 0 0", background: "linear-gradient(to top, #16a34a, #4ade80)", height: Math.max(2, (v.profit / maxSales) * 130) }} />
-                <div style={{ fontSize: 9, color: "#8a7e6e", textAlign: "center" }}>{date.slice(8)}</div>
+                <div style={{ fontSize: 9, color: "#8a7e6e", textAlign: "center" }}>{v.date.slice(8)}</div>
               </div>
             ))}
           </div>
@@ -131,14 +127,14 @@ export default function AnalyticsView({ bills = [] }) {
           <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 16 }}>🏆 Top Selling Items</div>
           {topItems.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "30px 0" }}>No data yet</div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {topItems.map(([name, v], i) => (
-              <div key={name}>
+            {topItems.map((item, i) => (
+              <div key={item.name}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
-                  <span style={{ fontWeight: 700, color: "#1a1310" }}>{i + 1}. {name}</span>
-                  <span style={{ color: "#2563eb", fontWeight: 700 }}>{formatINR(v.revenue)}</span>
+                  <span style={{ fontWeight: 700, color: "#1a1310" }}>{i + 1}. {item.name}</span>
+                  <span style={{ color: "#2563eb", fontWeight: 700 }}>{formatINR(item.revenue)}</span>
                 </div>
                 <div style={{ height: 6, borderRadius: 999, background: "#f0ebe4", overflow: "hidden" }}>
-                  <div style={{ height: "100%", borderRadius: 999, background: `hsl(${220 - i * 20}, 70%, 55%)`, width: `${(v.revenue / maxRev) * 100}%`, transition: "width 0.5s" }} />
+                  <div style={{ height: "100%", borderRadius: 999, background: `hsl(${220 - i * 20}, 70%, 55%)`, width: `${(item.revenue / maxRev) * 100}%`, transition: "width 0.5s" }} />
                 </div>
               </div>
             ))}
@@ -149,7 +145,7 @@ export default function AnalyticsView({ bills = [] }) {
       {/* Recent bills */}
       <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", overflow: "hidden" }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e0d8", fontSize: 14, fontWeight: 800, color: "#1a1310" }}>🧾 Recent Bills</div>
-        {bills.slice(0, 20).map((b, i) => (
+        {recent.map((b, i) => (
           <div key={b.id} style={{ display: "flex", alignItems: "center", padding: "12px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: 16 }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>MD{b.id.slice(-3)}</div>
@@ -164,7 +160,7 @@ export default function AnalyticsView({ bills = [] }) {
             </button>
           </div>
         ))}
-        {bills.length === 0 && <div style={{ textAlign: "center", color: "#c9b9a8", padding: "30px 0" }}>No bills yet. Start billing!</div>}
+        {recent.length === 0 && <div style={{ textAlign: "center", color: "#c9b9a8", padding: "30px 0" }}>No bills yet. Start billing!</div>}
       </div>
 
       {/* Date-wise Item Report */}
@@ -196,23 +192,26 @@ export default function AnalyticsView({ bills = [] }) {
 
         <div style={{ background: "#fff8ee", borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: "#92400e" }}>
-            {selectedDate ? `📅 ${selectedDate}` : "📊 All Time"} — {filteredBills.length} bills
+            {selectedDate ? `📅 ${selectedDate}` : "📊 All Time"}
           </span>
           <span style={{ fontSize: 14, fontWeight: 900, color: "#2563eb" }}>{formatINR(filteredTotal)}</span>
         </div>
 
-        {filteredItemData.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "20px 0" }}>Is date koi sale nahi</div>}
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
-          {filteredItemData.map(([name, v]) => (
-            <div key={name} style={{ background: "#f8f5f0", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e0d8" }}>
-              <div style={{ fontSize: 11, color: CAT_COLORS[v.category] || "#8a7e6e", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{v.category}</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 6 }}>{name}</div>
-              <div style={{ fontSize: 20, fontWeight: 900, color: CAT_COLORS[v.category] || "#f59e0b" }}>{formatQty(v.qty, v.unit)}</div>
-              <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700, marginTop: 4 }}>{formatINR(v.revenue)}</div>
-              <div style={{ fontSize: 11, color: "#8a7e6e" }}>Total sold · Total amount</div>
-            </div>
-          ))}
-        </div>
+        {reportLoading && <div style={{ color: "#8a7e6e", textAlign: "center", padding: "20px 0", fontSize: 13 }}>⏳ Fetching report...</div>}
+        {!reportLoading && filteredItemData.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "20px 0" }}>Is date koi sale nahi</div>}
+        {!reportLoading && (
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+            {filteredItemData.map((item) => (
+              <div key={item.name} style={{ background: "#f8f5f0", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e0d8" }}>
+                <div style={{ fontSize: 11, color: CAT_COLORS[item.category] || "#8a7e6e", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{item.category}</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 6 }}>{item.name}</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: CAT_COLORS[item.category] || "#f59e0b" }}>{formatQty(item.qty, item.unit)}</div>
+                <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700, marginTop: 4 }}>{formatINR(item.revenue)}</div>
+                <div style={{ fontSize: 11, color: "#8a7e6e" }}>Total sold · Total amount</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

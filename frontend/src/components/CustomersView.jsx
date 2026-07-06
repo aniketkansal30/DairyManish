@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Icon from "./Icon";
 import { formatINR, formatDate, formatTime, formatQty } from "../utils/helpers";
 import { printBill } from "../utils/printBill";
+import { apiCall } from "../utils/api";
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
@@ -13,9 +14,11 @@ function useIsMobile() {
   return isMobile;
 }
 
-export default function CustomersView({ customers, bills, setCart, setView }) {
+export default function CustomersView({ customers, setCart, setView }) {
   const [search, setSearch]     = useState("");
   const [selected, setSelected] = useState(null);
+  const [customerBills, setCustomerBills] = useState([]);
+  const [billsLoading, setBillsLoading] = useState(false);
   const mobile = useIsMobile();
 
   const filtered = customers.filter(
@@ -24,9 +27,25 @@ export default function CustomersView({ customers, bills, setCart, setView }) {
       c.phone?.includes(search)
   );
 
-  const customerBills = selected
-    ? bills.filter((b) => selected.bills?.includes(b.id))
-    : [];
+  // ─── Fetch selected customer's bills on demand ───────────────────────────
+  useEffect(() => {
+    if (!selected) {
+      setCustomerBills([]);
+      return;
+    }
+    async function fetchCustomerBills() {
+      setBillsLoading(true);
+      try {
+        const res = await apiCall(`/bills?phone=${selected.phone}&limit=200`);
+        setCustomerBills(Array.isArray(res) ? res : []);
+      } catch (err) {
+        console.error("Error fetching customer bills:", err);
+      } finally {
+        setBillsLoading(false);
+      }
+    }
+    fetchCustomerBills();
+  }, [selected]);
 
   const repeatOrder = (bill) => {
     setCart(bill.items.map((i) => ({ ...i, qty: i.qty, total: i.qty * i.price })));
@@ -107,10 +126,13 @@ export default function CustomersView({ customers, bills, setCart, setView }) {
           </div>
 
           <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 12 }}>Purchase History</div>
-          {customerBills.length === 0 && (
+          {billsLoading && (
+            <div style={{ color: "#8a7e6e", textAlign: "center", padding: "30px 0", fontSize: 13 }}>⏳ Loading purchase history...</div>
+          )}
+          {!billsLoading && customerBills.length === 0 && (
             <div style={{ color: "#c9b9a8", textAlign: "center", padding: "30px 0" }}>No bills found</div>
           )}
-          {customerBills.map((b) => (
+          {!billsLoading && customerBills.map((b) => (
             <div key={b.id} style={{ background: "#fff", borderRadius: 14, border: "1px solid #e5e0d8", padding: mobile ? 12 : 16, marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, gap: 8 }}>
                 <div>

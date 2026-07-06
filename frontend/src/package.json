@@ -7,7 +7,7 @@
     "frontend"
   ],
   "scripts": {
-    "build": "npm install --prefix frontend clear&& npm run build --prefix frontend",
+    "build": "node -e \"const fs = require('fs'); const cp = require('child_process'); if (fs.existsSync('frontend/package.json')) { cp.execSync('npm install --prefix frontend && npm run build --prefix frontend', {stdio: 'inherit'}); } else { cp.execSync('npm install && npm run build', {stdio: 'inherit'}); }\"",
     "start": "node backend/server.js",
     "dev": "npm install --prefix backend && npm install --prefix frontend && npm run build --prefix frontend && node backend/server.js"
   }

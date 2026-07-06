@@ -10,8 +10,8 @@ const popBtn = {
   justifyContent: "center", color: "#4a3f35", flexShrink: 0, fontSize: 18,
 };
 
-const CATEGORY_LIST = [
-  "Milk","Dahi","Paneer","Namkeen","Kachori","Sweets",
+const CATEGORY_LIST_DEFAULT = [
+  "All", "Milk","Dahi","Paneer","Namkeen","Kachori","Sweets",
   "Amul","Snacks","Tandoor","Cookies","Dry Fruit Thal","Other","Gravy Items",
 ];
 
@@ -22,6 +22,21 @@ export default function BillingView({
   customerForm, setCustomerForm, checkoutBill, dbCats,
   editingBillId, onCancelEdit,
 }) {
+  const categoryList = useMemo(() => {
+    const set = new Set(CATEGORY_LIST_DEFAULT);
+    if (Array.isArray(dbCats)) {
+      dbCats.forEach(c => {
+        if (c) set.add(c);
+      });
+    }
+    if (Array.isArray(products)) {
+      products.forEach(p => {
+        if (p.category) set.add(p.category);
+      });
+    }
+    return Array.from(set);
+  }, [dbCats, products]);
+
   const [customDate, setCustomDate] = useState("");
 const [showDatePicker, setShowDatePicker] = useState(false);
   const [popup, setPopup] = useState(null);
@@ -317,7 +332,7 @@ const [showDatePicker, setShowDatePicker] = useState(false);
       <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", overflowX: "hidden" }}>
         {/* Category horizontal scroll */}
         <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
-          {CATEGORY_LIST.map((c) => (
+          {categoryList.map((c) => (
             <button key={c} onClick={() => setCategory(c)} style={{
               display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
               padding: "6px 10px", borderRadius: 10, flexShrink: 0,
@@ -455,7 +470,7 @@ const [showDatePicker, setShowDatePicker] = useState(false);
       <div style={{ display: "flex", gap: 16 }}>
         {/* Category sidebar */}
         <div style={{ display: "flex", flexDirection: "column", gap: 3, width: 110, flexShrink: 0, maxHeight: "calc(100vh - 140px)", overflowY: "auto" }}>
-          {CATEGORY_LIST.map((c) => (
+          {categoryList.map((c) => (
             <button key={c} onClick={() => setCategory(c)} style={{
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
               gap: 2, padding: "6px 4px", borderRadius: 10, border: "2px solid",

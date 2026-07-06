@@ -88,7 +88,7 @@ export default function App() {
 
   // ─── BILLING STATE ──────────────────────────────────────────────────────────
   const [cart, setCart] = useState([]);
-  const [category, setCategory] = useState("Milk");
+  const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
   const [customerForm, setCustomerForm] = useState({ name: "", phone: "" });
   const [discount, setDiscount] = useState(0);
@@ -214,7 +214,7 @@ export default function App() {
       setCart([]);
       setCustomerForm({ name: "", phone: "" });
       setDiscount(0);
-      setCategory("Milk");
+      setCategory("All");
     } catch (e) {
       alert("Bill save karne mein error: " + e.message);
     }

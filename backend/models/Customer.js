@@ -11,4 +11,5 @@ const customerSchema = new mongoose.Schema(
 
 customerSchema.index({ name: "text" }); // for text search
 
-module.exports = mongoose.model("Customer", customerSchema);
+const model = mongoose.model("Customer", customerSchema);
+module.exports = require("../utils/inMemoryDb").wrapModel("Customer", model);

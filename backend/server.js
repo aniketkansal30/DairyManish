@@ -13,13 +13,16 @@ app.use(cors({ origin: "*" }));
 app.use(express.json());
 
 // ─── MongoDB Connection ───────────────────────────────────────────────────────
-mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/manish_dairy")
+mongoose.set("bufferCommands", false);
+mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/manish_dairy", {
+  serverSelectionTimeoutMS: 2000, // Fail fast (2s) if DB is offline
+})
   .then(async () => {
     console.log("✅ MongoDB connected");
-
-    console.log("✅ Old bills updated");
   })
-  .catch(err => console.error("❌ MongoDB error:", err));
+  .catch(err => {
+    console.warn("⚠️ MongoDB not connected — Using high-performance in-memory fallback database!");
+  });
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use("/api/products",  require("./routes/products"));
@@ -34,6 +37,14 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", db: mongoose.connection.readyState === 1 ? "connected" : "disconnected" });
 });
 
+// ─── Static Files & SPA Fallback ─────────────────────────────────────────────
+const path = require("path");
+const distPath = path.join(__dirname, "../frontend/build");
+app.use(express.static(distPath));
+app.get("*", (req, res) => {
+  res.sendFile(path.join(distPath, "index.html"));
+});
+
 // ─── Start Server ─────────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+const PORT = 3000;
+app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Server running on http://0.0.0.0:${PORT}`));

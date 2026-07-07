@@ -34,7 +34,7 @@ export default function BillingView({
         if (p.category) set.add(p.category);
       });
     }
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    return Array.from(set);
   }, [dbCats, products]);
 
   const [customDate, setCustomDate] = useState("");
@@ -84,20 +84,9 @@ const [showDatePicker, setShowDatePicker] = useState(false);
     });
   };
 
-  const popularIds = useMemo(() => {
-    const countMap = {};
-    bills.forEach((b) => b.items?.forEach((i) => { countMap[i.id] = (countMap[i.id] || 0) + 1; }));
-    return Object.entries(countMap).sort(([,a],[,b]) => b - a).slice(0,5).map(([id]) => id);
-  }, [bills]);
-
   const sortedFiltered = useMemo(() => {
-    return [...filtered].sort((a, b) => {
-      const aIdx = popularIds.indexOf(a.id), bIdx = popularIds.indexOf(b.id);
-      if (aIdx === -1 && bIdx === -1) return 0;
-      if (aIdx === -1) return 1; if (bIdx === -1) return -1;
-      return aIdx - bIdx;
-    });
-  }, [filtered, popularIds]);
+    return [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+  }, [filtered]);
 
   const openPopup = (product) => {
     const cartId = popup?.selectedVariation ? `${product.id}_${product.selectedVariation}` : product.id;

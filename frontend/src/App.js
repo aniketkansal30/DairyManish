@@ -447,7 +447,7 @@ export default function App() {
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          overflow: isMobile ? "visible" : "hidden",
+          overflow: isMobile ? "visible" : "auto",
         }}
       >
         {view === "billing" && (

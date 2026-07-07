@@ -20,6 +20,14 @@ export default function App() {
   const [token, setToken] = useState(localStorage.getItem("dairy_token"));
   const [view, setView] = useState("billing");
   const [tapCount, setTapCount] = useState(0);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // Track responsive screen size
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Handle automatic session logout on expired/invalid token
   useEffect(() => {
@@ -254,7 +262,7 @@ export default function App() {
       setCart([]);
       setCustomerForm({ name: "", phone: "" });
       setDiscount(0);
-      setCategory("All");
+      setCategory("Milk");
     } catch (e) {
       alert("Bill save karne mein error: " + e.message);
     } finally {
@@ -412,7 +420,8 @@ export default function App() {
       style={{
         display: "flex",
         flexDirection: "column",
-        minHeight: "100vh",
+        height: isMobile ? "auto" : "100vh",
+        overflow: isMobile ? "auto" : "hidden",
         background: "#f8f5f0",
         fontFamily: "'Segoe UI', sans-serif",
       }}
@@ -430,11 +439,15 @@ export default function App() {
 
       <div
         style={{
-          padding: window.innerWidth < 768 ? "12px 8px" : "24px",
+          padding: isMobile ? "12px 8px" : "16px 24px",
           maxWidth: 1400,
           margin: "0 auto",
           width: "100%",
           boxSizing: "border-box",
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          overflow: isMobile ? "visible" : "hidden",
         }}
       >
         {view === "billing" && (

@@ -11,7 +11,7 @@ const popBtn = {
 };
 
 const CATEGORY_LIST_DEFAULT = [
-  "All", "Milk","Dahi","Paneer","Namkeen","Kachori","Sweets",
+   "Milk","Dahi","Paneer","Namkeen","Kachori","Sweets",
   "Amul","Snacks","Tandoor","Cookies","Dry Fruit Thal","Other","Gravy Items",
 ];
 
@@ -34,7 +34,7 @@ export default function BillingView({
         if (p.category) set.add(p.category);
       });
     }
-    return Array.from(set);
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [dbCats, products]);
 
   const [customDate, setCustomDate] = useState("");

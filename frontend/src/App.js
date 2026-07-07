@@ -106,7 +106,7 @@ export default function App() {
 
   // ─── BILLING STATE ──────────────────────────────────────────────────────────
   const [cart, setCart] = useState([]);
-  const [category, setCategory] = useState("All");
+  const [category, setCategory] = useState("Milk");
   const [search, setSearch] = useState("");
   const [customerForm, setCustomerForm] = useState({ name: "", phone: "" });
   const [discount, setDiscount] = useState(0);

@@ -102,43 +102,22 @@ export default function AnalyticsView() {
         ))}
       </div>
 
-      {/* Charts row */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 14 : 24 }}>
-        <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", padding: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 16 }}>📅 This Month – Daily Sales</div>
-          {daily.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "30px 0" }}>No data yet</div>}
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 160, overflowX: "auto" }}>
-            {daily.map((v) => (
-              <div key={v.date} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 28 }}>
-                <div style={{ fontSize: 9, color: "#2563eb", fontWeight: 700 }}>₹{Math.round(v.sales / 100)}h</div>
-                <div style={{ width: 20, borderRadius: "4px 4px 0 0", background: "linear-gradient(to top, #2563eb, #60a5fa)", height: Math.max(4, (v.sales / maxSales) * 130) }} />
-                <div style={{ width: 20, borderRadius: "4px 4px 0 0", background: "linear-gradient(to top, #16a34a, #4ade80)", height: Math.max(2, (v.profit / maxSales) * 130) }} />
-                <div style={{ fontSize: 9, color: "#8a7e6e", textAlign: "center" }}>{v.date.slice(8)}</div>
+      {/* Top Selling Items - full width */}
+      <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", padding: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 16 }}>🏆 Top Selling Items</div>
+        {topItems.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "30px 0" }}>No data yet</div>}
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "8px 24px" }}>
+          {topItems.map((item, i) => (
+            <div key={item.name}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                <span style={{ fontWeight: 700, color: "#1a1310" }}>{i + 1}. {item.name}</span>
+                <span style={{ color: "#2563eb", fontWeight: 700 }}>{formatINR(item.revenue)}</span>
               </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
-            <span style={{ fontSize: 11, color: "#2563eb" }}>🔵 Sales</span>
-            <span style={{ fontSize: 11, color: "#16a34a" }}>🟢 Profit</span>
-          </div>
-        </div>
-
-        <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", padding: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310", marginBottom: 16 }}>🏆 Top Selling Items</div>
-          {topItems.length === 0 && <div style={{ color: "#c9b9a8", textAlign: "center", padding: "30px 0" }}>No data yet</div>}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {topItems.map((item, i) => (
-              <div key={item.name}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
-                  <span style={{ fontWeight: 700, color: "#1a1310" }}>{i + 1}. {item.name}</span>
-                  <span style={{ color: "#2563eb", fontWeight: 700 }}>{formatINR(item.revenue)}</span>
-                </div>
-                <div style={{ height: 6, borderRadius: 999, background: "#f0ebe4", overflow: "hidden" }}>
-                  <div style={{ height: "100%", borderRadius: 999, background: `hsl(${220 - i * 20}, 70%, 55%)`, width: `${(item.revenue / maxRev) * 100}%`, transition: "width 0.5s" }} />
-                </div>
+              <div style={{ height: 6, borderRadius: 999, background: "#f0ebe4", overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 999, background: `hsl(${220 - i * 20}, 70%, 55%)`, width: `${(item.revenue / maxRev) * 100}%`, transition: "width 0.5s" }} />
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       </div>
 

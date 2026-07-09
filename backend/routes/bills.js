@@ -348,7 +348,7 @@ router.get("/analytics", async (req, res) => {
           }
         },
         { $sort: { revenue: -1 } },
-        { $limit: 8 },
+        { $limit: 16 },
         { $project: { _id: 0, name: "$_id", revenue: 1, qty: 1 } }
       ]),
 

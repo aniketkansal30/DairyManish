@@ -95,19 +95,35 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
+  // ─── Shared password check (same as Delete) ────────────────────────────────
+  const checkAdminPassword = () => {
+    const pass = prompt("Admin Password Enter Karo:");
+    if (pass !== "aniket123") {
+      alert("❌ Wrong Password!");
+      return false;
+    }
+    return true;
+  };
+
   const deleteSelected = async () => {
     if (!selected.length) return;
-    const pass = prompt("Admin Password Enter Karo:");
-    if (pass !== "aniket123") { alert("❌ Wrong Password!"); return; }
+    if (!checkAdminPassword()) return;
     if (!window.confirm(`${selected.length} bills delete karne hain?`)) return;
     for (const id of selected) await onDelete(id);
     setSelected([]);
   };
 
   const deleteAll = () => {
+    if (!checkAdminPassword()) return;
     if (!window.confirm("Saari history delete karna chahte ho? Yeh action undo nahi hoga!")) return;
     onDeleteAll();
     setSelected([]);
+  };
+
+  // ─── Edit now requires admin password too ──────────────────────────────────
+  const handleEditClick = (b) => {
+    if (!checkAdminPassword()) return;
+    onLoadEdit(b);
   };
 
   const isMobile = window.innerWidth < 768;
@@ -220,7 +236,7 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
               {(b.paymentMode || "CASH") === "UPI" ? "📲 UPI" : "💵 CASH"}
             </div>
             <div style={{ textAlign: "right" }}>{formatINR(b.total)}</div>
-            <button onClick={() => onLoadEdit(b)}
+            <button onClick={() => handleEditClick(b)}
               style={{ padding: "6px 10px", borderRadius: 8, border: "1.5px solid #2563eb", background: "#eff6ff", cursor: "pointer", fontSize: 11, color: "#2563eb", fontWeight: 700, display: "flex", gap: 4, alignItems: "center" }}>
               <Icon name="edit" size={12} /> Edit
             </button>
@@ -229,6 +245,7 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
               <Icon name="print" size={12} /> Print
             </button>
             <button onClick={async () => {
+              if (!checkAdminPassword()) return;
               if (window.confirm("Yeh bill delete karein?")) {
                 setBills((prev) => prev.filter((x) => x.id !== b.id));
                 await onDelete(b.id);

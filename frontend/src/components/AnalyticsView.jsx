@@ -6,9 +6,12 @@ import { useState, useMemo, useEffect } from "react";
 import { apiCall } from "../utils/api";
 
 export default function AnalyticsView() {
-  const [selectedDate, setSelectedDate] = useState(
-    () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA")
-  );
+  const getIndiaDate = (d = new Date()) =>
+    new Date(d.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })).toLocaleDateString("en-CA");
+
+  const [period, setPeriod] = useState("today"); // today | yesterday | month | all | custom
+  const [customFrom, setCustomFrom] = useState(getIndiaDate());
+  const [customTo, setCustomTo] = useState(getIndiaDate());
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -34,12 +37,32 @@ export default function AnalyticsView() {
     fetchAnalytics();
   }, []);
 
+  // ─── Compute date range from selected period ───────────────────────────────
+  const { fromDate, toDate } = useMemo(() => {
+    const todayStr = getIndiaDate();
+    if (period === "today") return { fromDate: todayStr, toDate: todayStr };
+    if (period === "yesterday") {
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      const yStr = getIndiaDate(y);
+      return { fromDate: yStr, toDate: yStr };
+    }
+    if (period === "month") {
+      const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      const first = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString("en-CA");
+      return { fromDate: first, toDate: todayStr };
+    }
+    if (period === "all") return { fromDate: "", toDate: "" };
+    return { fromDate: customFrom, toDate: customTo }; // custom
+  }, [period, customFrom, customTo]);
+
   // ─── Fetch date-wise item report ───────────────────────────────────────────
   useEffect(() => {
     async function fetchReport() {
       setReportLoading(true);
       try {
-        const res = await apiCall(`/bills/item-report?date=${selectedDate}`);
+        const params = fromDate && toDate ? `?from=${fromDate}&to=${toDate}` : "";
+        const res = await apiCall(`/bills/item-report${params}`);
         setReportData(res || []);
       } catch (err) {
         console.error("Item report fetch error:", err);
@@ -48,8 +71,7 @@ export default function AnalyticsView() {
       }
     }
     fetchReport();
-  }, [selectedDate]);
-
+  }, [fromDate, toDate]);
   // Date-wise totals from report data
   const filteredTotal = useMemo(() => reportData.reduce((s, i) => s + i.revenue, 0), [reportData]);
 
@@ -144,19 +166,27 @@ export default function AnalyticsView() {
 
       {/* Date-wise Item Report */}
       <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: "#1a1310" }}>📦 Date-wise Item Report</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
-              style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", fontSize: 13, outline: "none" }} />
-            <button onClick={() => setSelectedDate(new Date().toLocaleDateString("en-CA"))}
-              style={{ padding: "6px 12px", borderRadius: 8, background: "#1a1310", color: "#f59e0b", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-              Today
-            </button>
-            <button onClick={() => setSelectedDate("")}
-              style={{ padding: "6px 12px", borderRadius: 8, background: "#f0ebe4", color: "#4a3f35", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-              All Time
-            </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {[
+              { key: "today", label: "Today" },
+              { key: "yesterday", label: "Yesterday" },
+              { key: "month", label: "This Month" },
+              { key: "all", label: "All Time" },
+            ].map((p) => (
+              <button key={p.key} onClick={() => setPeriod(p.key)}
+                style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #e5e0d8", background: period === p.key ? "#f59e0b" : "#fff", color: period === p.key ? "#1a1310" : "#4a3f35", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                {p.label}
+              </button>
+            ))}
+            <input type="date" value={customFrom}
+              onChange={(e) => { setCustomFrom(e.target.value); setPeriod("custom"); }}
+              style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", fontSize: 12, outline: "none" }} />
+            <span style={{ fontSize: 12, color: "#8a7e6e" }}>→</span>
+            <input type="date" value={customTo}
+              onChange={(e) => { setCustomTo(e.target.value); setPeriod("custom"); }}
+              style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", fontSize: 12, outline: "none" }} />
           </div>
         </div>
 
@@ -171,7 +201,7 @@ export default function AnalyticsView() {
 
         <div style={{ background: "#fff8ee", borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: "#92400e" }}>
-            {selectedDate ? `📅 ${selectedDate}` : "📊 All Time"}
+            {period === "all" ? "📊 All Time" : period === "today" ? `📅 Today (${fromDate})` : period === "yesterday" ? `📅 Yesterday (${fromDate})` : period === "month" ? `📅 This Month (${fromDate} → ${toDate})` : `📅 ${fromDate} → ${toDate}`}
           </span>
           <span style={{ fontSize: 14, fontWeight: 900, color: "#2563eb" }}>{formatINR(filteredTotal)}</span>
         </div>

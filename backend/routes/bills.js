@@ -240,11 +240,16 @@ router.get("/sales-summary", async (req, res) => {
 // ─── GET /api/bills/item-report ───────────────────────────────────────────────
 router.get("/item-report", async (req, res) => {
   try {
-    const { date } = req.query;
+    const { date, from, to } = req.query;
     const filter = {};
-    if (date) {
+    if (from && to) {
+      filter.date = istRange(from, to);
+    } else if (from) {
+      filter.date = istRange(from);
+    } else if (date) {
       filter.date = istRange(date);
     }
+    // agar kuch bhi nahi diya => filter empty => All Time (sab bills)
 
     const report = await Bill.aggregate([
       { $match: filter },

@@ -58,19 +58,28 @@ export default function AnalyticsView() {
 
   // ─── Fetch date-wise item report ───────────────────────────────────────────
   useEffect(() => {
+    let ignore = false; // 🛡️ race-condition guard
+
     async function fetchReport() {
       setReportLoading(true);
       try {
         const params = fromDate && toDate ? `?from=${fromDate}&to=${toDate}` : "";
         const res = await apiCall(`/bills/item-report${params}`);
-        setReportData(res || []);
+        if (!ignore) {
+          setReportData(res || []);
+        }
       } catch (err) {
-        console.error("Item report fetch error:", err);
+        if (!ignore) console.error("Item report fetch error:", err);
       } finally {
-        setReportLoading(false);
+        if (!ignore) setReportLoading(false);
       }
     }
+
     fetchReport();
+
+    return () => {
+      ignore = true; // jab fromDate/toDate change ho, purani request ka result ignore karo
+    };
   }, [fromDate, toDate]);
   // Date-wise totals from report data
   const filteredTotal = useMemo(() => reportData.reduce((s, i) => s + i.revenue, 0), [reportData]);

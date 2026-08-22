@@ -1,19 +1,17 @@
+import React, { Suspense, lazy, useState, useEffect, useMemo, useRef } from "react";
 import Login from "./Login";
-import { useState, useEffect, useMemo, useRef } from "react";
 
-
-// Utils
 import { apiCall } from "./utils/api";
 import { today } from "./utils/helpers";
 import { printBill } from "./utils/printBill";
-
-// Components
 import Navbar from "./components/Navbar";
-import BillingView from "./components/BillingView";
-import ProductsView from "./components/ProductsView";
-import SalesView from "./components/SalesView";
-import AnalyticsView from "./components/AnalyticsView";
-import CustomersView from "./components/CustomersView";
+
+// Lazy load — sirf jo view active hai wahi load hoga
+const BillingView = lazy(() => import("./components/BillingView"));
+const ProductsView = lazy(() => import("./components/ProductsView"));
+const SalesView = lazy(() => import("./components/SalesView"));
+const AnalyticsView = lazy(() => import("./components/AnalyticsView"));
+const CustomersView = lazy(() => import("./components/CustomersView"));
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
@@ -211,9 +209,6 @@ export default function App() {
 
   // ─── CHECKOUT ───────────────────────────────────────────────────────────────
   const checkoutBill = async (paymentMode = "CASH", customDate = null) => {
-    console.log("=== DEBUG ===");
-    console.log("customDate received:", customDate);
-    console.log("date being sent:", customDate ? new Date(customDate + "T12:00:00+05:30").toISOString() : new Date().toISOString());
     if (!cart.length) return;
 
     if (isSubmittingBill.current) {
@@ -437,7 +432,7 @@ export default function App() {
         }}
       />
 
-      <div
+            <div
         style={{
           padding: isMobile ? "12px 8px" : "16px 24px",
           maxWidth: 1400,
@@ -450,62 +445,68 @@ export default function App() {
           overflow: isMobile ? "visible" : "auto",
         }}
       >
-        {view === "billing" && (
-          <BillingView
-            products={products}
-            filtered={filtered}
-            bills={bills}
-            category={category}
-            setCategory={setCategory}
-            search={search}
-            setSearch={setSearch}
-            cart={cart}
-            setCart={setCart}
-            addToCart={addToCart}
-            updateQty={updateQty}
-            setQtyPreset={setQtyPreset}
-            cartTotal={cartTotal}
-            cartSubtotal={cartSubtotal}
-            discountAmt={discountAmt}
-            discount={discount}
-            setDiscount={setDiscount}
-            customerForm={customerForm}
-            setCustomerForm={setCustomerForm}
-            checkoutBill={checkoutBill}
-            dbCats={dbCats}
-            editingBillId={editingBillId}
-            onCancelEdit={() => { setEditingBillId(null); setCart([]); setView("sales"); }}
-          />
-        )}
-        {view === "products" && (
-          <ProductsView
-            products={products}
-            onSave={handleSaveProduct}
-            onDelete={handleDeleteProduct}
-            dbCats={dbCats}
-            setDbCats={setDbCats}
-          />
-        )}
-        {view === "sales" && (
-          <SalesView
-            bills={bills}
-            onDelete={handleDeleteBill}
-            onDeleteAll={handleDeleteAllBills}
-            onEdit={handleEditBill}
-            products={products}
-            setView={setView}
-            onLoadEdit={loadBillIntoCart}
-            onSecretTap={handleSecretTap}
-          />
-        )}
-        {view === "analytics" && <AnalyticsView />}
-        {view === "customers" && (
-          <CustomersView
-            customers={customers}
-            setCart={setCart}
-            setView={setView}
-          />
-        )}
+        <Suspense fallback={
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 60, color: "#8a7e6e", fontSize: 14 }}>
+            Loading...
+          </div>
+        }>
+          {view === "billing" && (
+            <BillingView
+              products={products}
+              filtered={filtered}
+              bills={bills}
+              category={category}
+              setCategory={setCategory}
+              search={search}
+              setSearch={setSearch}
+              cart={cart}
+              setCart={setCart}
+              addToCart={addToCart}
+              updateQty={updateQty}
+              setQtyPreset={setQtyPreset}
+              cartTotal={cartTotal}
+              cartSubtotal={cartSubtotal}
+              discountAmt={discountAmt}
+              discount={discount}
+              setDiscount={setDiscount}
+              customerForm={customerForm}
+              setCustomerForm={setCustomerForm}
+              checkoutBill={checkoutBill}
+              dbCats={dbCats}
+              editingBillId={editingBillId}
+              onCancelEdit={() => { setEditingBillId(null); setCart([]); setView("sales"); }}
+            />
+          )}
+          {view === "products" && (
+            <ProductsView
+              products={products}
+              onSave={handleSaveProduct}
+              onDelete={handleDeleteProduct}
+              dbCats={dbCats}
+              setDbCats={setDbCats}
+            />
+          )}
+          {view === "sales" && (
+            <SalesView
+              bills={bills}
+              onDelete={handleDeleteBill}
+              onDeleteAll={handleDeleteAllBills}
+              onEdit={handleEditBill}
+              products={products}
+              setView={setView}
+              onLoadEdit={loadBillIntoCart}
+              onSecretTap={handleSecretTap}
+            />
+          )}
+          {view === "analytics" && <AnalyticsView />}
+          {view === "customers" && (
+            <CustomersView
+              customers={customers}
+              setCart={setCart}
+              setView={setView}
+            />
+          )}
+        </Suspense>
       </div>
     </div>
   );

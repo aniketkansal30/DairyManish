@@ -128,7 +128,7 @@ export default function AnalyticsView() {
 
     // Title / meta rows on top of the sheet
     const metaRows = [
-      ["MANISH DAIRY GANGANAGAR - Date-wise Item Report"],
+      ["MANISH DAIRY JAILCHUNGI - Date-wise Item Report"],
       [periodLabelForSheet()],
       [],
     ];

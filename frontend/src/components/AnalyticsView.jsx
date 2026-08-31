@@ -1,7 +1,6 @@
 import Icon from "./Icon";
 import { CAT_COLORS } from "../utils/constants";
 import { formatINR, formatDate, formatTime, formatQty } from "../utils/helpers";
-import { printBill } from "../utils/printBill";
 import { useState, useMemo, useEffect } from "react";
 import { apiCall } from "../utils/api";
 import * as XLSX from "xlsx";
@@ -172,7 +171,7 @@ export default function AnalyticsView() {
     );
   }
 
-  const { today, allTime, daily, topItems, recent } = analytics;
+  const { today, allTime, daily, topItems} = analytics;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -209,27 +208,6 @@ export default function AnalyticsView() {
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Recent bills */}
-      <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", overflow: "hidden" }}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e0d8", fontSize: 14, fontWeight: 800, color: "#1a1310" }}>🧾 Recent Bills</div>
-        {recent.map((b, i) => (
-          <div key={b.id} style={{ display: "flex", alignItems: "center", padding: "12px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: 16 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>MD{b.id.slice(-3)}</div>
-              <div style={{ fontSize: 11, color: "#8a7e6e" }}>{formatDate(b.date)} {formatTime(b.date)} · {b.items?.length} items</div>
-            </div>
-            {b.customer?.name && <div style={{ fontSize: 12, color: "#4a3f35" }}>👤 {b.customer.name}</div>}
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#2563eb" }}>{formatINR(b.total)}</div>
-            </div>
-            <button onClick={() => printBill(b)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", fontSize: 11, color: "#4a3f35", display: "flex", gap: 4, alignItems: "center" }}>
-              <Icon name="print" size={12} /> Print
-            </button>
-          </div>
-        ))}
-        {recent.length === 0 && <div style={{ textAlign: "center", color: "#c9b9a8", padding: "30px 0" }}>No bills yet. Start billing!</div>}
       </div>
 
       {/* Date-wise Item Report */}

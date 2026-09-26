@@ -28,6 +28,8 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
 
   // ─── Fetch bills and summary from backend ──────────────────────────────────
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchData() {
       setLoading(true);
       const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -50,15 +52,24 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
           apiCall(`/bills?${queryParams}&limit=${listLimit}`)
         ]);
 
+        // ✅ Agar filter change ho chuka hai tab tak (stale response), toh ignore karo
+        if (cancelled) return;
+
         setSummary(sumData);
         setBills(Array.isArray(billsRes) ? billsRes : (billsRes.bills || []));
       } catch (e) {
-        console.error(e);
+        if (!cancelled) console.error(e);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
+
     fetchData();
+
+    // ✅ Cleanup — jab filter/date/limit dobara change ho, purani request ko cancel mark karo
+    return () => {
+      cancelled = true;
+    };
   }, [filter, startDate, endDate, listLimit]);
 
   // ─── Filter list on clientside only by paymentMode ─────────────────────────

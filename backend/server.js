@@ -3,19 +3,18 @@ const Bill = require("./models/Bill");
 const mongoose = require("mongoose");
 const cors = require("cors");
 
-
 require("dotenv").config();
 
 const app = express();
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
-app.use(cors({ origin: "*" })); 
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 
 // ─── MongoDB Connection ───────────────────────────────────────────────────────
 mongoose.set("bufferCommands", false);
 mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/manish_dairy", {
-  serverSelectionTimeoutMS: 2000, // Fail fast (2s) if DB is offline
+  serverSelectionTimeoutMS: 2000,
 })
   .then(async () => {
     console.log("✅ MongoDB connected");
@@ -28,21 +27,17 @@ mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/manish_da
 app.use("/api/products",  require("./routes/products"));
 app.use("/api/bills",     require("./routes/bills"));
 app.use("/api/customers", require("./routes/customers"));
-app.use("/api/auth", require("./routes/auth")); 
+app.use("/api/auth", require("./routes/auth"));
 app.use("/api/categories", require("./routes/categories"));
-
 
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", db: mongoose.connection.readyState === 1 ? "connected" : "disconnected" });
 });
 
-// ─── Static Files & SPA Fallback ─────────────────────────────────────────────
-const path = require("path");
-const distPath = path.join(__dirname, "../frontend/build");
-app.use(express.static(distPath));
-app.get("*", (req, res) => {
-  res.sendFile(path.join(distPath, "index.html"));
+// Root route — sirf confirm karne ke liye ki backend zinda hai
+app.get("/", (req, res) => {
+  res.json({ status: "DairyManish backend running", frontend: "hosted separately on Vercel" });
 });
 
 // ─── Start Server ─────────────────────────────────────────────────────────────

@@ -101,142 +101,108 @@ router.post("/", authMiddleware, async (req, res) => {
 });
 
 // ─── POST /api/bills/apply-discount ──────────────────────────────────────────
-// ✅ FIXED: Ek hi bulkWrite query — N individual updates nahi
+// Global discount: ONLY selling rate + bill total
 router.post("/apply-discount", authMiddleware, async (req, res) => {
   try {
-    const { discount } = req.body;
-    const d = parseFloat(discount) / 100;
-    if (!d || d <= 0 || d >= 1)
-      return res.status(400).json({ error: "Invalid discount" });
+    const discount = Number(req.body.discount);
 
-    // Sab bills ek saath fetch (lean — sirf zaruri fields)
-    const bills = await Bill.find({}).lean();
-    if (!bills.length) return res.json({ success: true, updated: 0 });
+    if (!Number.isFinite(discount) || discount <= 0 || discount >= 100) {
+      return res.status(400).json({
+        error: "Invalid discount"
+      });
+    }
+
+    const d = discount / 100;
+
+    // Sirf un bills par apply hoga jinke upar pehle global discount nahi laga
+    const bills = await Bill.find({
+      $or: [
+        { discountApplied: { $exists: false } },
+        { discountApplied: false }
+      ]
+    }).lean();
+
+    if (!bills.length) {
+      return res.json({
+        success: true,
+        updated: 0,
+        message: "Discount already applied."
+      });
+    }
 
     const bulkOps = bills.map((bill) => {
-      const newItems = bill.items.map((item) => {
-        const newPrice = +(item.price * (1 - d)).toFixed(2);
-        const newCost = +(item.cost * (1 - d)).toFixed(2);
-        return { ...item, price: newPrice, cost: newCost, total: +(newPrice * item.qty).toFixed(2) };
+
+      const newItems = (bill.items || []).map((item) => {
+        const oldPrice = Number(item.price) || 0;
+        const qty = Number(item.qty) || 0;
+
+        // ONLY SELLING RATE REDUCE
+        const newPrice = +(oldPrice * (1 - d)).toFixed(2);
+
+        return {
+          ...item,
+
+          // Bill ke andar rate change
+          price: newPrice,
+
+          // Item total bhi change
+          total: +(newPrice * qty).toFixed(2),
+
+          // COST BILKUL SAME
+          cost: item.cost
+        };
       });
 
-      const newSubtotal = +newItems.reduce((s, i) => s + i.total, 0).toFixed(2);
-      const newCostTotal = +newItems.reduce((s, i) => s + i.cost * i.qty, 0).toFixed(2);
-      const newDiscAmt = +(newSubtotal * (bill.discountPct || 0) / 100).toFixed(2);
-      const newTotal = +(newSubtotal - newDiscAmt).toFixed(2);
-      const newProfit = +(newTotal - newCostTotal).toFixed(2);
+      // Discounted bill subtotal
+      const newSubtotal = +newItems
+        .reduce((sum, item) => sum + Number(item.total || 0), 0)
+        .toFixed(2);
 
       return {
         updateOne: {
           filter: { _id: bill._id },
+
           update: {
             $set: {
+              // Updated rates
               items: newItems,
+
+              // Sales amount
               subtotal: newSubtotal,
-              discountAmt: newDiscAmt,
-              total: newTotal,
-              cost: newCostTotal,
-              profit: newProfit,
-              discountApplied: true,
-            },
-          },
-        },
-      };
-    });
+              total: newSubtotal,
 
-    // ✅ Ek hi DB round-trip for all updates
-    const result = await Bill.bulkWrite(bulkOps, { ordered: false });
-    res.json({ success: true, updated: result.modifiedCount });
-  } catch (err) {
-    console.error("❌ DISCOUNT ERROR:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+              // Discount information
+              discountPct: discount,
+              discountAmt: +(
+                (Number(bill.subtotal) || 0) - newSubtotal
+              ).toFixed(2),
 
-// ─── GET /api/bills/sales-summary ─────────────────────────────────────────────
-router.get("/sales-summary", async (req, res) => {
-  try {
-    const filter = {};
-
-    if (req.query.date && req.query.endDate) {
-      filter.date = istRange(req.query.date, req.query.endDate);
-    } else if (req.query.date) {
-      filter.date = istRange(req.query.date);
-    }
-
-    if (req.query.month) {
-      const [year, month] = req.query.month.split("-").map(Number);
-      const lastDay = new Date(year, month, 0).getDate();
-      filter.date = istRange(
-        `${year}-${String(month).padStart(2, "0")}-01`,
-        `${year}-${String(month).padStart(2, "0")}-${lastDay}`
-      );
-    }
-
-    const [totals] = await Bill.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: null,
-          totalSales: { $sum: "$total" },
-          totalProfit: { $sum: "$profit" },
-          totalDiscount: { $sum: { $ifNull: ["$discountAmt", 0] } },
-          billsCount: { $sum: 1 },
-          cashSales: {
-            $sum: {
-              $cond: [
-                { $eq: [{ $ifNull: ["$paymentMode", "CASH"] }, "CASH"] },
-                "$total",
-                0
-              ]
-            }
-          },
-          cashCount: {
-            $sum: {
-              $cond: [
-                { $eq: [{ $ifNull: ["$paymentMode", "CASH"] }, "CASH"] },
-                1,
-                0
-              ]
-            }
-          },
-          upiSales: {
-            $sum: {
-              $cond: [
-                { $eq: ["$paymentMode", "UPI"] },
-                "$total",
-                0
-              ]
-            }
-          },
-          upiCount: {
-            $sum: {
-              $cond: [
-                { $eq: ["$paymentMode", "UPI"] },
-                1,
-                0
-              ]
+              // IMPORTANT:
+              // cost/profit ko update nahi karna
+              discountApplied: true
             }
           }
         }
-      }
-    ]);
-
-    res.json(totals || {
-      totalSales: 0,
-      totalProfit: 0,
-      totalDiscount: 0,
-      billsCount: 0,
-      cashSales: 0,
-      cashCount: 0,
-      upiSales: 0,
-      upiCount: 0
+      };
     });
+
+    const result = await Bill.bulkWrite(bulkOps, {
+      ordered: false
+    });
+
+    res.json({
+      success: true,
+      updated: result.modifiedCount,
+      discount
+    });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("❌ DISCOUNT ERROR:", err);
+    res.status(500).json({
+      error: err.message
+    });
   }
 });
-
 // ─── GET /api/bills/item-report ───────────────────────────────────────────────
 router.get("/item-report", async (req, res) => {
   try {

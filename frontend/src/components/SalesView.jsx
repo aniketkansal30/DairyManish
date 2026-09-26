@@ -125,7 +125,32 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
     if (!checkAdminPassword()) return;
     onLoadEdit(b);
   };
+    const [exporting, setExporting] = useState(false);
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const yesterdayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000 - 86400000).toISOString().slice(0, 10);
+      let queryParams = "";
+      if (filter === "today") queryParams = `date=${todayIST}`;
+      else if (filter === "yesterday") queryParams = `date=${yesterdayIST}`;
+      else if (filter === "month") queryParams = `month=${thisMonth()}`;
+      else if (filter === "all") queryParams = "";
+      else if (filter === "custom" && startDate) queryParams = `date=${startDate}&endDate=${endDate || startDate}`;
+
+      const allBillsRes = await apiCall(`/bills?${queryParams}&limit=1000000`);
+      const allBills = Array.isArray(allBillsRes) ? allBillsRes : (allBillsRes.bills || []);
+      const toExport = payFilter === "ALL" ? allBills : allBills.filter(b => (b.paymentMode || "CASH") === payFilter);
+
+      exportToExcel(toExport, filter, filter === "custom" ? (startDate === endDate || !endDate ? startDate : `${startDate}_${endDate}`) : null);
+    } catch (e) {
+      console.error(e);
+      alert("Export fail ho gaya, dobara try karo.");
+    } finally {
+      setExporting(false);
+    }
+  };
   const isMobile = window.innerWidth < 768;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 12 : 20, padding: isMobile ? "0 4px" : 0 }}>
@@ -171,8 +196,8 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
             🗑️ Delete All
           </button>
         </div>
-        <button onClick={() => exportToExcel(filtered, filter, filter === "custom" ? (startDate === endDate || !endDate ? startDate : `${startDate}_${endDate}`) : null)} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid #16a34a", background: "#f0fdf4", color: "#16a34a" }}>
-          📊 Export Excel
+        <button onClick={handleExport} disabled={exporting} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: exporting ? "not-allowed" : "pointer", border: "1.5px solid #16a34a", background: "#f0fdf4", color: "#16a34a", opacity: exporting ? 0.6 : 1 }}>
+          {exporting ? "⏳ Exporting..." : "📊 Export Excel"}
         </button>
       </div>
 

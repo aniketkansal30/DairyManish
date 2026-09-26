@@ -35,8 +35,9 @@ router.get("/", async (req, res) => {
       filter["customer.phone"] = req.query.phone;
     }
 
-    // ✅ Pagination — default 50, max 200
-    const limit = Math.min(parseInt(req.query.limit) || 50, 10000);
+    // ✅ Pagination — default 50 for normal use, no cap when export explicitly requests all data
+    const requestedLimit = parseInt(req.query.limit) || 50;
+    const limit = req.query.noLimit === "true" ? requestedLimit : Math.min(requestedLimit, 10000);
     const skip = parseInt(req.query.skip) || 0;
 
     // ✅ lean() — plain JS object, ~30% faster, less memory

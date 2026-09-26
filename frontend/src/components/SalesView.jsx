@@ -139,7 +139,7 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
       else if (filter === "all") queryParams = "";
       else if (filter === "custom" && startDate) queryParams = `date=${startDate}&endDate=${endDate || startDate}`;
 
-      const allBillsRes = await apiCall(`/bills?${queryParams}&limit=1000000`);
+      const allBillsRes = await apiCall(`/bills?${queryParams}&noLimit=true&limit=1000000`);
       const allBills = Array.isArray(allBillsRes) ? allBillsRes : (allBillsRes.bills || []);
       const toExport = payFilter === "ALL" ? allBills : allBills.filter(b => (b.paymentMode || "CASH") === payFilter);
 

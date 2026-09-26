@@ -250,6 +250,54 @@ function getTodayISTRange() {
   const istStr = new Date(now.getTime() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
   return istRange(istStr);
 }
+// ─── GET /api/bills/sales-summary ─────────────────────────────────────────────
+router.get("/sales-summary", async (req, res) => {
+  try {
+    const filter = {};
+
+    if (req.query.date && req.query.endDate) {
+      filter.date = istRange(req.query.date, req.query.endDate);
+    } else if (req.query.date) {
+      filter.date = istRange(req.query.date);
+    }
+
+    if (req.query.month) {
+      const [year, month] = req.query.month.split("-").map(Number);
+      const lastDay = new Date(year, month, 0).getDate();
+      filter.date = istRange(
+        `${year}-${String(month).padStart(2, "0")}-01`,
+        `${year}-${String(month).padStart(2, "0")}-${lastDay}`
+      );
+    }
+
+    const result = await Bill.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          totalSales: { $sum: "$total" },
+          totalProfit: { $sum: "$profit" },
+          totalDiscount: { $sum: "$discountAmt" },
+          billsCount: { $sum: 1 },
+          cashSales: { $sum: { $cond: [{ $eq: [{ $ifNull: ["$paymentMode", "CASH"] }, "CASH"] }, "$total", 0] } },
+          cashCount: { $sum: { $cond: [{ $eq: [{ $ifNull: ["$paymentMode", "CASH"] }, "CASH"] }, 1, 0] } },
+          upiSales: { $sum: { $cond: [{ $eq: [{ $ifNull: ["$paymentMode", "CASH"] }, "UPI"] }, "$total", 0] } },
+          upiCount: { $sum: { $cond: [{ $eq: [{ $ifNull: ["$paymentMode", "CASH"] }, "UPI"] }, 1, 0] } },
+        }
+      }
+    ]);
+
+    const summary = result[0] || {
+      totalSales: 0, totalProfit: 0, totalDiscount: 0, billsCount: 0,
+      cashSales: 0, cashCount: 0, upiSales: 0, upiCount: 0
+    };
+    delete summary._id;
+
+    res.json(summary);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ─── GET /api/bills/analytics ─────────────────────────────────────────────────
 router.get("/analytics", async (req, res) => {

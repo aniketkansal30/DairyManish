@@ -235,7 +235,7 @@ const checkAdminPassword = () => {
             Koi bill nahi {labels[filter].toLowerCase()} mein
           </div>
         )}
-        {[...filtered].sort((a, b) => new Date(b.date) - new Date(a.date)).map((b, i) => (
+        {!loading && [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date)).map((b, i) => (
           <div key={b.id}
             style={{ display: "flex", alignItems: "center", padding: isMobile ? "10px 12px" : "13px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: isMobile ? 8 : 16, flexWrap: "wrap", background: "transparent" }}>
             <div style={{ flex: 1, minWidth: 140 }}>

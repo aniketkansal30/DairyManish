@@ -423,6 +423,83 @@ router.delete("/all", authMiddleware, async (req, res) => {
     });
   }
 });
+// ─── GET /api/bills/sales-summary ────────────────────────────────────────────
+// SalesView ke KPI cards ke liye summary
+router.get("/sales-summary", async (req, res) => {
+  try {
+    const filter = {};
+
+    // Date filter
+    if (req.query.date && req.query.endDate) {
+      filter.date = istRange(req.query.date, req.query.endDate);
+    } else if (req.query.date) {
+      filter.date = istRange(req.query.date);
+    }
+
+    // Month filter
+    if (req.query.month) {
+      const [year, month] = req.query.month.split("-").map(Number);
+      const lastDay = new Date(year, month, 0).getDate();
+
+      filter.date = istRange(
+        `${year}-${String(month).padStart(2, "0")}-01`,
+        `${year}-${String(month).padStart(2, "0")}-${lastDay}`
+      );
+    }
+
+    const bills = await Bill.find(filter).lean();
+
+    let totalSales = 0;
+    let totalProfit = 0;
+    let totalDiscount = 0;
+
+    let cashSales = 0;
+    let cashCount = 0;
+
+    let upiSales = 0;
+    let upiCount = 0;
+
+    for (const bill of bills) {
+      const total = Number(bill.total) || 0;
+      const profit = Number(bill.profit) || 0;
+      const discount = Number(bill.discountAmt) || 0;
+
+      totalSales += total;
+      totalProfit += profit;
+      totalDiscount += discount;
+
+      const paymentMode = bill.paymentMode || "CASH";
+
+      if (paymentMode === "UPI") {
+        upiSales += total;
+        upiCount++;
+      } else {
+        cashSales += total;
+        cashCount++;
+      }
+    }
+
+    res.json({
+      totalSales,
+      totalProfit,
+      totalDiscount,
+      billsCount: bills.length,
+
+      cashSales,
+      cashCount,
+
+      upiSales,
+      upiCount
+    });
+
+  } catch (err) {
+    console.error("❌ SALES SUMMARY ERROR:", err);
+
+    res.status(500).json({
+      error: err.message
+    });
+  }
+});
 
 // ─── PUT /api/bills/:id ───────────────────────────────────────────────────────
 router.put("/:id", async (req, res) => {

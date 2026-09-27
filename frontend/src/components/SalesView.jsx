@@ -108,7 +108,16 @@ export default function SalesView({
     all: "All Time",
     custom: startDate && endDate ? `${startDate} → ${endDate}` : startDate ? `From ${startDate}` : "Custom Range",
   };
+const checkAdminPassword = () => {
+  const pass = prompt("Admin Password Enter Karo:");
 
+  if (pass !== "aniket123") {
+    alert("❌ Wrong Password!");
+    return false;
+  }
+
+  return true;
+};
 
   // ─── Edit now requires admin password too ──────────────────────────────────
   const handleEditClick = (b) => {

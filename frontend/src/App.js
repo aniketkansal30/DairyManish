@@ -110,6 +110,18 @@ export default function App() {
       "2 = Delete ALL Bills\n\n" +
       "Enter 1 or 2:"
     );
+    const handleSecretTap = () => {
+  setTapCount(prev => {
+    const newCount = prev + 1;
+
+    if (newCount >= 3) {
+      triggerDiscount();
+      return 0;
+    }
+
+    return newCount;
+  });
+};
 
     // DELETE BY DATE RANGE
     if (action === "1") {

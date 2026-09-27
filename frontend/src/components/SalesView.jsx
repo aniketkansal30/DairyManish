@@ -11,8 +11,7 @@ export default function SalesView({
   onEdit,
   products,
   setView,
-  onLoadEdit,
-  onSecretTap
+  onLoadEdit
 }) {
   const [filter, setFilter] = useState("today");
   const [startDate, setStartDate] = useState("");
@@ -155,7 +154,9 @@ const checkAdminPassword = () => {
     <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 12 : 20, padding: isMobile ? "0 4px" : 0 }}>
       {/* Header + filters */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ fontSize: 20, fontWeight: 900, color: "#1a1310" }} onClick={onSecretTap}>💰 Sales Overview</div>
+        <div style={{ fontSize: 20, fontWeight: 900, color: "#1a1310" }}>
+  💰 Sales Overview
+</div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: isMobile ? "center" : "flex-start" }}>
           {["today", "yesterday", "month", "all"].map((f) => (
             <button key={f} onClick={() => setFilter(f)}

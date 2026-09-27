@@ -488,7 +488,7 @@ export default function App() {
           gap: 16,
         }}
       >
-        <div style={{ fontSize: 48 }} onClick={handleSecretTap}>🥛</div>
+        <div style={{ fontSize: 48 }}>🥛</div>
         <div style={{ fontSize: 20, fontWeight: 900, color: "#1a1310" }}>MANISH DAIRY</div>
         <div style={{ fontSize: 14, color: "#8a7e6e" }}>Data load ho raha hai...</div>
       </div>

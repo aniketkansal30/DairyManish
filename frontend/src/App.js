@@ -604,7 +604,7 @@ export default function App() {
               products={products}
               setView={setView}
               onLoadEdit={loadBillIntoCart}
-              onSecretTap={handleSecretTap}
+             
             />
           )}
           {view === "analytics" && <AnalyticsView />}

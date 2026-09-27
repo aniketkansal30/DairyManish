@@ -6,7 +6,14 @@ import { exportToExcel } from "../utils/exportExcel";
 import { printBill } from "../utils/printBill";
 
 // ─── SALES VIEW ───────────────────────────────────────────────────────────────
-export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, onEdit, products, setView, onLoadEdit, onSecretTap }) {
+export default function SalesView({
+  bills: initialBills,
+  onEdit,
+  products,
+  setView,
+  onLoadEdit,
+  onSecretTap
+}) {
   const [filter, setFilter] = useState("today");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -102,34 +109,6 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
     custom: startDate && endDate ? `${startDate} → ${endDate}` : startDate ? `From ${startDate}` : "Custom Range",
   };
 
-  const toggleSelect = (id) => {
-    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
-
-  // ─── Shared password check (same as Delete) ────────────────────────────────
-  const checkAdminPassword = () => {
-    const pass = prompt("Admin Password Enter Karo:");
-    if (pass !== "aniket123") {
-      alert("❌ Wrong Password!");
-      return false;
-    }
-    return true;
-  };
-
-  const deleteSelected = async () => {
-    if (!selected.length) return;
-    if (!checkAdminPassword()) return;
-    if (!window.confirm(`${selected.length} bills delete karne hain?`)) return;
-    for (const id of selected) await onDelete(id);
-    setSelected([]);
-  };
-
-  const deleteAll = () => {
-    if (!checkAdminPassword()) return;
-    if (!window.confirm("Saari history delete karna chahte ho? Yeh action undo nahi hoga!")) return;
-    onDeleteAll();
-    setSelected([]);
-  };
 
   // ─── Edit now requires admin password too ──────────────────────────────────
   const handleEditClick = (b) => {
@@ -197,15 +176,6 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
               {pm === "ALL" ? "💳 All" : pm === "CASH" ? "💵 Cash" : "📲 UPI"}
             </button>
           ))}
-
-          {selected.length > 0 && (
-            <button onClick={deleteSelected} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid #ef4444", background: "#ef4444", color: "#fff" }}>
-              🗑️ Delete Selected ({selected.length})
-            </button>
-          )}
-          <button onClick={deleteAll} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid #ef4444", background: "#fff", color: "#ef4444" }}>
-            🗑️ Delete All
-          </button>
         </div>
         <button onClick={handleExport} disabled={exporting} style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: exporting ? "not-allowed" : "pointer", border: "1.5px solid #16a34a", background: "#f0fdf4", color: "#16a34a", opacity: exporting ? 0.6 : 1 }}>
           {exporting ? "⏳ Exporting..." : "📊 Export Excel"}
@@ -257,8 +227,7 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
         )}
         {[...filtered].sort((a, b) => new Date(b.date) - new Date(a.date)).map((b, i) => (
           <div key={b.id}
-            style={{ display: "flex", alignItems: "center", padding: isMobile ? "10px 12px" : "13px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: isMobile ? 8 : 16, flexWrap: "wrap", background: selected.includes(b.id) ? "#fff8ee" : "transparent" }}>
-            <input type="checkbox" checked={selected.includes(b.id)} onChange={() => toggleSelect(b.id)} style={{ width: 16, height: 16, cursor: "pointer", flexShrink: 0 }} />
+            style={{ display: "flex", alignItems: "center", padding: isMobile ? "10px 12px" : "13px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: isMobile ? 8 : 16, flexWrap: "wrap", background: "transparent" }}>
             <div style={{ flex: 1, minWidth: 140 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>
                 Token: {b.id?.slice(-3)}
@@ -280,17 +249,8 @@ export default function SalesView({ bills: initialBills, onDelete, onDeleteAll, 
               style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", fontSize: 11, color: "#4a3f35", display: "flex", gap: 4, alignItems: "center" }}>
               <Icon name="print" size={12} /> Print
             </button>
-            <button onClick={async () => {
-              if (!checkAdminPassword()) return;
-              if (window.confirm("Yeh bill delete karein?")) {
-                setBills((prev) => prev.filter((x) => x.id !== b.id));
-                await onDelete(b.id);
-              }
-            }}
-              style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #fca5a5", background: "#fff", cursor: "pointer", fontSize: 11, color: "#ef4444", display: "flex", gap: 4, alignItems: "center" }}>
-              <Icon name="trash" size={12} /> Delete
-            </button>
-          </div>
+            
+            </div>
         ))}
 
         {/* Load More Button */}

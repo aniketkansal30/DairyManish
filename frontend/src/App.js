@@ -37,64 +37,194 @@ export default function App() {
     return () => window.removeEventListener("auth_expired", handleAuthExpired);
   }, []);
 
-  // Admin shortcut: Ctrl+Shift+D → apply global discount
-  useEffect(() => {
-    
-    const handleKey = async (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "d") {
-        const pass = prompt("Enter Admin Password");
-        if (pass === "aniket123") {
-          const discount = prompt("Enter Global Discount %");
-          const confirmApply = window.confirm(
-            "Are you sure? This will apply discount permanently."
-          );
-          if (confirmApply) {
-            await apiCall("/bills/apply-discount", "POST", {
-              discount: Number(discount),
-            });
-            alert("Discount applied to existing data");
-            window.location.reload();
-          }
-        }
-      }
-
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, []);
-  useEffect(() => {
-    const API = process.env.REACT_APP_API_URL?.replace("/api", "");
-    fetch(API + "/health").catch(() => { });
-    const ping = setInterval(() => {
-      fetch(API + "/health").catch(() => { });
-    }, 14 * 60 * 1000);
-    return () => clearInterval(ping);
-  }, []);
+  // ─── ADMIN SHORTCUTS ────────────────────────────────────────────────────────
+  // Ctrl + Shift + D → Discount
+  // Ctrl + Shift + X → Delete
 
   const triggerDiscount = async () => {
     const pass = prompt("Enter Admin Password");
-    if (pass === "aniket123") {
-      const discount = prompt("Enter Global Discount %");
-      const confirmApply = window.confirm("Are you sure? This will apply discount permanently.");
-      if (confirmApply) {
-        await apiCall("/bills/apply-discount", "POST", { discount: Number(discount) });
-        alert("Discount applied to existing data");
-        window.location.reload();
-      }
+
+    if (pass !== "aniket123") {
+      alert("❌ Wrong Password!");
+      return;
+    }
+
+    const fromDate = prompt(
+      "Enter FROM Date (YYYY-MM-DD)\nExample: 2026-09-01"
+    );
+    if (!fromDate) return;
+
+    const toDate = prompt(
+      "Enter TO Date (YYYY-MM-DD)\nExample: 2026-09-30"
+    );
+    if (!toDate) return;
+
+    const discount = prompt("Enter Global Discount %");
+
+    if (!discount || Number(discount) <= 0 || Number(discount) >= 100) {
+      alert("❌ Invalid discount percentage");
+      return;
+    }
+
+    const confirmApply = window.confirm(
+      `Apply ${discount}% discount?\n\n` +
+      `From: ${fromDate}\n` +
+      `To: ${toDate}\n\n` +
+      `Only bills in this date range will be affected.`
+    );
+
+    if (!confirmApply) return;
+
+    try {
+      const result = await apiCall("/bills/apply-discount", "POST", {
+        discount: Number(discount),
+        fromDate,
+        toDate
+      });
+
+      alert(
+        `✅ Discount Applied!\n\n` +
+        `Discount: ${discount}%\n` +
+        `Date: ${fromDate} → ${toDate}\n` +
+        `Bills Updated: ${result.updated}`
+      );
+
+      window.location.reload();
+    } catch (error) {
+      alert("❌ Discount apply nahi hua: " + error.message);
     }
   };
 
-  const handleSecretTap = () => {
-    setTapCount(prev => {
-      const newCount = prev + 1;
-      if (newCount >= 3) {
-        triggerDiscount();
-        return 0;
+
+  const triggerDelete = async () => {
+    const pass = prompt("Enter Admin Password");
+
+    if (pass !== "aniket123") {
+      alert("❌ Wrong Password!");
+      return;
+    }
+
+    const action = prompt(
+      "DELETE OPTION:\n\n" +
+      "1 = Delete Bills by Date Range\n" +
+      "2 = Delete ALL Bills\n\n" +
+      "Enter 1 or 2:"
+    );
+
+    // DELETE BY DATE RANGE
+    if (action === "1") {
+      const fromDate = prompt(
+        "Enter FROM Date (YYYY-MM-DD)\nExample: 2026-09-01"
+      );
+      if (!fromDate) return;
+
+      const toDate = prompt(
+        "Enter TO Date (YYYY-MM-DD)\nExample: 2026-09-30"
+      );
+      if (!toDate) return;
+
+      const confirmDelete = window.confirm(
+        `⚠️ DELETE BILLS\n\n` +
+        `From: ${fromDate}\n` +
+        `To: ${toDate}\n\n` +
+        `Is date range ke saare bills permanently delete honge.\n\n` +
+        `Continue?`
+      );
+
+      if (!confirmDelete) return;
+
+      try {
+        const result = await apiCall(
+          "/bills/delete-by-date",
+          "DELETE",
+          {
+            fromDate,
+            toDate
+          }
+        );
+
+        alert(
+          `✅ Bills Deleted!\n\n` +
+          `Date: ${fromDate} → ${toDate}\n` +
+          `Bills Deleted: ${result.deleted || 0}`
+        );
+
+        window.location.reload();
+      } catch (error) {
+        alert("❌ Delete nahi hua: " + error.message);
       }
-      return newCount;
-    });
+
+      return;
+    }
+
+    // DELETE ALL
+    if (action === "2") {
+      const confirm1 = window.confirm(
+        "⚠️ WARNING!\n\n" +
+        "SAARI BILLS PERMANENTLY DELETE HO JAYENGI.\n\n" +
+        "Continue?"
+      );
+
+      if (!confirm1) return;
+
+      const confirm2 = window.confirm(
+        "FINAL CONFIRMATION\n\n" +
+        "Kya aap REALLY ALL BILLS DELETE karna chahte ho?"
+      );
+
+      if (!confirm2) return;
+
+      try {
+        const result = await apiCall("/bills/all", "DELETE");
+
+        alert(
+          `✅ All Bills Deleted!\n\n` +
+          `Deleted: ${result.deleted || 0}`
+        );
+
+        window.location.reload();
+      } catch (error) {
+        alert("❌ Delete All nahi hua: " + error.message);
+      }
+
+      return;
+    }
+
+    alert("❌ Invalid option");
   };
-  // ─── DATA STATE ─────────────────────────────────────────────────────────────
+
+
+  useEffect(() => {
+    const handleKey = (e) => {
+
+      // Ctrl + Shift + D
+      if (
+        e.ctrlKey &&
+        e.shiftKey &&
+        e.key.toLowerCase() === "d"
+      ) {
+        e.preventDefault();
+        triggerDiscount();
+        return;
+      }
+
+      // Ctrl + Shift + X
+      if (
+        e.ctrlKey &&
+        e.shiftKey &&
+        e.key.toLowerCase() === "x"
+      ) {
+        e.preventDefault();
+        triggerDelete();
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, []);  // ─── DATA STATE ─────────────────────────────────────────────────────────────
   const [products, setProducts] = useState([]);
   const [bills, setBills] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -307,37 +437,6 @@ export default function App() {
     }
   };
 
-  // ─── BILL CRUD ──────────────────────────────────────────────────────────────
-  const handleDeleteBill = async (id) => {
-    const pass = prompt("Admin Password Enter Karo:");
-    if (pass !== "aniket123") {
-      alert("❌ Wrong Password!");
-      return;
-    }
-    setBills((prev) => prev.filter((b) => b.id !== id));
-    try {
-      await apiCall(`/bills/${id}`, "DELETE");
-    } catch (e) {
-      // Agar error aaye toh wapas add karo
-      const bls = await apiCall("/bills");
-      setBills(bls);
-      alert("Bill delete karne mein error: " + e.message);
-    }
-  };
-
-  const handleDeleteAllBills = async () => {
-    const pass = prompt("Admin Password Enter Karo:");
-    if (pass !== "aniket123") {
-      alert("❌ Wrong Password!");
-      return;
-    }
-    try {
-      await apiCall("/bills/all", "DELETE");
-      setBills([]);
-    } catch (e) {
-      alert("Saari bills delete karne mein error: " + e.message);
-    }
-  };
 
   const handleEditBill = async (billId, updatedItems, updatedDiscountPct) => {
     try {
@@ -489,8 +588,6 @@ export default function App() {
           {view === "sales" && (
             <SalesView
               bills={bills}
-              onDelete={handleDeleteBill}
-              onDeleteAll={handleDeleteAllBills}
               onEdit={handleEditBill}
               products={products}
               setView={setView}

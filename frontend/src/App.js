@@ -99,12 +99,15 @@ export default function App() {
     });
 
     alert(
-      `✅ Items Removed Successfully!\n\n` +
-      `Removal: ${percentageNumber}%\n` +
-      `Date: ${fromDate} → ${toDate}\n` +
-      `Bills Updated: ${result.updated || 0}\n` +
-      `Items Removed Value: ₹${Number(result.removedValue || 0).toFixed(2)}`
-    );
+  `✅ Bills Deleted Successfully!\n\n` +
+  `Target: ${percentageNumber}%\n` +
+  `Date: ${fromDate} → ${toDate}\n\n` +
+  `Total Sales: ₹${Number(result.totalValue || 0).toFixed(2)}\n` +
+  `Target Value: ₹${Number(result.targetValue || 0).toFixed(2)}\n` +
+  `Deleted Bills: ${result.deleted || 0}\n` +
+  `Deleted Value: ₹${Number(result.deletedValue || 0).toFixed(2)}\n` +
+  `Remaining Value: ₹${Number(result.remainingValue || 0).toFixed(2)}`
+);
 
     window.location.reload();
   } catch (error) {

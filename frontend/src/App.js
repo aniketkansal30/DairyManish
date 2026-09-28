@@ -390,10 +390,7 @@ export default function App() {
     try {
       const saved = await apiCall("/bills", "POST", bill);
       setBills((prev) => [saved, ...prev]);
-      if (customerForm.phone) {
-        const updatedCustomers = await apiCall("/customers");
-        setCustomers(updatedCustomers);
-      }
+      apiCall("/customers").then(setCustomers).catch(() => {});
       printBill(saved);
       setCart([]);
       setCustomerForm({ name: "", phone: "" });

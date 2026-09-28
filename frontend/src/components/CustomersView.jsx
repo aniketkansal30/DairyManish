@@ -55,7 +55,7 @@ export default function CustomersView({ customers: initialCustomers, setCart, se
     async function fetchCustomerBills() {
       setBillsLoading(true);
       try {
-        const res = await apiCall(`/bills?phone=${selected.phone}&limit=200`);
+        const res = await apiCall(`/bills?customerKey=${encodeURIComponent(selected.key)}&limit=200`);
         setCustomerBills(Array.isArray(res) ? res : (res.bills || []));
       } catch (err) {
         console.error("Error fetching customer bills:", err);
@@ -99,9 +99,9 @@ export default function CustomersView({ customers: initialCustomers, setCart, se
             )}
             {filtered.map((c) => (
               <button
-                key={c.phone}
+                key={c.key}
                 onClick={() => setSelected(c)}
-                style={{ width: "100%", textAlign: "left", padding: "13px 16px", borderBottom: "1px solid #f0ebe4", background: selected?.phone === c.phone ? "#f8f5f0" : "#fff", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}
+                style={{ width: "100%", textAlign: "left", padding: "13px 16px", borderBottom: "1px solid #f0ebe4", background: selected?.key === c.key ? "#f8f5f0" : "#fff", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}
               >
                 <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#1a1310", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b", fontSize: 16, fontWeight: 900, flexShrink: 0 }}>
                   {c.name ? c.name[0].toUpperCase() : "?"}
@@ -109,7 +109,7 @@ export default function CustomersView({ customers: initialCustomers, setCart, se
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310" }}>{c.name || "Unknown"}</div>
                   <div style={{ fontSize: 11, color: "#8a7e6e" }}>
-                    <Icon name="phone" size={10} /> {c.phone} · {c.bills?.length || 0} orders
+                    <Icon name="phone" size={10} /> {c.phone || "No phone"} · {c.bills?.length || 0} orders
                   </div>
                 </div>
               </button>
@@ -137,7 +137,7 @@ export default function CustomersView({ customers: initialCustomers, setCart, se
             </div>
             <div>
               <div style={{ fontSize: mobile ? 16 : 20, fontWeight: 900, color: "#f59e0b" }}>{selected.name || "Unknown Customer"}</div>
-              <div style={{ fontSize: 13, color: "#c9b9a8" }}>{selected.phone}</div>
+              <div style={{ fontSize: 13, color: "#c9b9a8" }}>{selected.phone || "No phone"}</div>
               <div style={{ fontSize: 12, color: "#8a7e6e", marginTop: 4 }}>
                 {selected.bills?.length || 0} total orders · Total spent: {formatINR(customerBills.reduce((s, b) => s + b.total, 0))}
               </div>

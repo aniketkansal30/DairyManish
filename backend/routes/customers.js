@@ -3,21 +3,48 @@ const authMiddleware = require("../middleware/auth");
 const Customer = require("../models/Customer");
 const Bill     = require("../models/Bill");
 
-// GET /api/customers — saare customers, optional ?search=
-
 router.get("/", async (req, res) => {
   try {
-    let customers;
+    const search = (req.query.search || "").trim();
+    const rx = search ? new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") : null;
 
-    if (req.query.search) {
-      const regex = new RegExp(req.query.search, "i");
-      customers = await Customer.find({
-        $or: [{ name: regex }, { phone: regex }],
-      }).sort({ updatedAt: -1 }).limit(100).lean();
-    } else {
-      customers = await Customer.find().sort({ updatedAt: -1 }).limit(250).lean();
-    }
+    const pipeline = [
+      { $addFields: {
+          cPhone: { $trim: { input: { $ifNull: ["$customer.phone", ""] } } },
+          cName:  { $trim: { input: { $ifNull: ["$customer.name", ""] } } },
+      } },
+      { $match: { $expr: { $or: [{ $ne: ["$cPhone", ""] }, { $ne: ["$cName", ""] }] } } },
+      { $addFields: {
+          key: {
+            $cond: [
+              { $ne: ["$cPhone", ""] }, { $concat: ["phone:", "$cPhone"] },
+              { $cond: [
+                { $ne: ["$cName", ""] }, { $concat: ["name:", { $toLower: "$cName" }] },
+                "walkin",
+              ] },
+            ],
+          },
+      } },
+      { $group: {
+          _id: "$key",
+          phone: { $max: "$cPhone" },
+          name:  { $max: "$cName" },
+          bills: { $push: "$id" },
+          last:  { $max: "$date" },
+      } },
+      { $project: {
+          _id: 0,
+          key: "$_id",
+          phone: 1,
+          bills: 1,
+          last: 1,
+          name: "$name",
+      } },
+    ];
+    if (rx) pipeline.push({ $match: { $or: [{ name: rx }, { phone: rx }] } });
+    pipeline.push({ $sort: { last: -1 } }, { $limit: 500 });
 
+    const customers = await Bill.aggregate(pipeline);
     res.json(customers);
   } catch (err) {
     res.status(500).json({ error: err.message });

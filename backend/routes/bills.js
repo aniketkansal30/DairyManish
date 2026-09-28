@@ -42,6 +42,34 @@ router.get("/", async (req, res) => {
       filter["customer.phone"] = req.query.phone;
     }
 
+    if (req.query.customerKey) {
+      const k = String(req.query.customerKey);
+      if (k.startsWith("phone:")) {
+        filter["customer.phone"] = k.slice(6);
+      } else if (k.startsWith("name:")) {
+        const nm = k.slice(5).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        filter["customer.name"] = new RegExp("^" + nm + "$", "i");
+        filter["customer.phone"] = { $in: ["", null] };
+      } else {
+        filter["customer.phone"] = { $in: ["", null] };
+        filter["customer.name"] = { $in: ["", null] };
+      }
+    }
+
+    if (req.query.customerKey) {
+      const k = String(req.query.customerKey);
+      if (k.startsWith("phone:")) {
+        filter["customer.phone"] = k.slice(6);
+      } else if (k.startsWith("name:")) {
+        const nm = k.slice(5).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        filter["customer.name"] = new RegExp("^" + nm + "$", "i");
+        filter["customer.phone"] = { $in: ["", null] };
+      } else {
+        filter["customer.phone"] = { $in: ["", null] };
+        filter["customer.name"] = { $in: ["", null] };
+      }
+    }
+
     // ✅ Pagination — default 50 for normal use, no cap when export explicitly requests all data
     const requestedLimit = parseInt(req.query.limit) || 50;
     const limit = req.query.noLimit === "true" ? requestedLimit : Math.min(requestedLimit, 10000);

@@ -23,6 +23,7 @@ router.post("/login", async (req, res) => {
 
 // REGISTER (sirf tum use karo - client setup ke time)
 router.post("/register", async (req, res) => {
+  if (process.env.ALLOW_REGISTER !== "true") return res.status(403).json({ error: "Registration disabled" });
   try {
     const { username, password, shopName } = req.body;
     const user = new User({ username, password, shopName });

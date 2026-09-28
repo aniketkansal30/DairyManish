@@ -14,12 +14,14 @@ app.use(express.json());
 // ─── MongoDB Connection ───────────────────────────────────────────────────────
 mongoose.set("bufferCommands", false);
 mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/manish_dairy", {
-  serverSelectionTimeoutMS: 2000,
+  serverSelectionTimeoutMS: 10000,
 })
   .then(async () => {
     console.log("✅ MongoDB connected");
   })
-  .catch(err => {
+    .catch(err => {
+    console.error("MongoDB error:", err.message);
+    if (process.env.RENDER) process.exit(1); // production mein fake DB nahi chalega
     console.warn("⚠️ MongoDB not connected — Using high-performance in-memory fallback database!");
   });
 

@@ -277,8 +277,7 @@ export default function App() {
         setLoading(false);
       }
     }
-    loadAll();
-  }, []);
+    loadAll(); }, [token]);
 
   // ─── CUSTOMER AUTO-COMPLETE ──────────────────────────────────────────────────
   useEffect(() => {

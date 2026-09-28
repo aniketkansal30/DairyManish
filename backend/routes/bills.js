@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const authMiddleware = require("../middleware/auth");
 const Bill = require("../models/Bill");
+const Customer = require("../models/Customer");
 
 
 // ─── Helper: IST date range ───────────────────────────────────────────────────
@@ -99,6 +100,15 @@ router.post("/", authMiddleware, async (req, res) => {
         phone: req.body.customer?.phone || "",
       },
     });
+        const phone = (req.body.customer?.phone || "").trim();
+    if (phone) {
+      try {
+        const name = (req.body.customer?.name || "").trim();
+        const update = { $addToSet: { bills: bill.id } };
+        if (name) update.$set = { name };
+        await Customer.findOneAndUpdate({ phone }, update, { upsert: true });
+      } catch (e) { console.error("Customer update error:", e.message); }
+    }
 
     res.json(bill);
   } catch (err) {
@@ -514,7 +524,13 @@ router.get("/sales-summary", async (req, res) => {
 
       const paymentMode = bill.paymentMode || "CASH";
 
-      if (paymentMode === "UPI") {
+      if (paymentMode.startsWith("SPLIT")) {
+        const m = paymentMode.match(/Cash:([\d.]+)\s+UPI:([\d.]+)/i);
+        cashSales += m ? Number(m[1]) : total;
+        upiSales += m ? Number(m[2]) : 0;
+        cashCount++;
+        upiCount++;
+      } else if (paymentMode === "UPI") {
         upiSales += total;
         upiCount++;
       } else {
@@ -554,9 +570,10 @@ router.put("/:id", async (req, res) => {
     const items = Array.isArray(req.body.items) ? req.body.items : bill.items;
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     const cost = items.reduce((s, i) => s + i.cost * i.qty, 0);
-    const discountPct = Number(req.body.discountPct) ?? bill.discountPct;
-    const discountAmt = (subtotal * discountPct) / 100;
-    const total = subtotal - discountAmt;
+    const keepDiscount = bill.discountApplied;
+    const discountPct = keepDiscount ? bill.discountPct : (Number(req.body.discountPct) || 0);
+    const discountAmt = keepDiscount ? bill.discountAmt : (subtotal * discountPct) / 100;
+    const total = keepDiscount ? subtotal : subtotal - discountAmt;
     const profit = 0; // Cost is equal to selling price, profit is 0% as requested
 
     Object.assign(bill, { items, subtotal, discountPct, discountAmt, total, cost, profit });

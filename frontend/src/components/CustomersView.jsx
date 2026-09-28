@@ -56,7 +56,7 @@ export default function CustomersView({ customers: initialCustomers, setCart, se
       setBillsLoading(true);
       try {
         const res = await apiCall(`/bills?phone=${selected.phone}&limit=200`);
-        setCustomerBills(Array.isArray(res) ? res : []);
+        setCustomerBills(Array.isArray(res) ? res : (res.bills || []));
       } catch (err) {
         console.error("Error fetching customer bills:", err);
       } finally {

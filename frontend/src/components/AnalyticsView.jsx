@@ -176,13 +176,21 @@ export default function AnalyticsView() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {/* KPI row */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 10 : 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(2, 1fr)", gap: isMobile ? 10 : 16 }}>
         {[
-          { label: "Today Sales", value: formatINR(today.revenue), color: "#2563eb", sub: `${today.bills} bills today` },
-          { label: "Today Profit", value: formatINR(today.profit), color: "#16a34a", sub: `${today.revenue > 0 ? Math.round((today.profit / today.revenue) * 100) : 0}% margin` },
-          { label: "Total Sales", value: formatINR(allTime.revenue), color: "#7c3aed", sub: `${allTime.bills} bills total` },
-          { label: "Total Profit", value: formatINR(allTime.profit), color: "#ea580c", sub: `${allTime.revenue > 0 ? Math.round((allTime.profit / allTime.revenue) * 100) : 0}% margin` },
-        ].map((k) => (
+  {
+    label: "Today Sales",
+    value: formatINR(today.revenue),
+    color: "#2563eb",
+    sub: `${today.bills} bills today`
+  },
+  {
+    label: "Total Sales",
+    value: formatINR(allTime.revenue),
+    color: "#7c3aed",
+    sub: `${allTime.bills} bills total`
+  },
+].map((k) => (
           <div key={k.label} style={{ background: "#fff", borderRadius: 16, padding: "20px", border: "1px solid #e5e0d8" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>{k.label}</div>
             <div style={{ fontSize: 22, fontWeight: 900, color: k.color, marginBottom: 4 }}>{k.value}</div>

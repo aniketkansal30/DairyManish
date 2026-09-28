@@ -209,11 +209,23 @@ const checkAdminPassword = () => {
       {/* KPI cards */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(auto-fill, minmax(200px, 1fr))", gap: isMobile ? 10 : 16 }}>
         {[
-          { label: "Total Sales", value: formatINR(displaySales), color: "#2563eb", icon: "💳", sub: `${displayCount} bills` },
-          { label: "Total Profit", value: formatINR(displayProfit), color: "#16a34a", icon: "📈", sub: "Calculated profit" },
-          { label: "Discount Given", value: formatINR(displayDiscount), color: "#f59e0b", icon: "🏷️", sub: "Total discounts" },
-          { label: "Avg Bill Value", value: displayCount ? formatINR(displaySales / displayCount) : "₹0.00", color: "#7c3aed", icon: "🧾", sub: "per bill" },
-        ].map((k) => (
+  {
+    label: "Total Sales",
+    value: formatINR(displaySales),
+    color: "#2563eb",
+    icon: "💳",
+    sub: `${displayCount} bills`
+  },
+  {
+    label: "Avg Bill Value",
+    value: displayCount
+      ? formatINR(displaySales / displayCount)
+      : "₹0.00",
+    color: "#7c3aed",
+    icon: "🧾",
+    sub: "per bill"
+  },
+].map((k) => (
           <div key={k.label} style={{ background: "#fff", borderRadius: 16, padding: isMobile ? "14px" : "20px", border: "1px solid #e5e0d8" }}>
             <div style={{ fontSize: isMobile ? 18 : 22, marginBottom: 4 }}>{k.icon}</div>
             <div style={{ fontSize: 10, fontWeight: 700, color: "#8a7e6e", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>{k.label}</div>

@@ -19,7 +19,7 @@ function getTodayISTRange() {
 
 // ─── GET /api/bills ───────────────────────────────────────────────────────────
 // Paginated + filtered bill list (no more full-collection scans)
-router.get("/", async (req, res) => {
+router.get("/", authMiddleware, async (req, res) => {
   try {
     const filter = {};
 
@@ -42,19 +42,7 @@ router.get("/", async (req, res) => {
       filter["customer.phone"] = req.query.phone;
     }
 
-    if (req.query.customerKey) {
-      const k = String(req.query.customerKey);
-      if (k.startsWith("phone:")) {
-        filter["customer.phone"] = k.slice(6);
-      } else if (k.startsWith("name:")) {
-        const nm = k.slice(5).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        filter["customer.name"] = new RegExp("^" + nm + "$", "i");
-        filter["customer.phone"] = { $in: ["", null] };
-      } else {
-        filter["customer.phone"] = { $in: ["", null] };
-        filter["customer.name"] = { $in: ["", null] };
-      }
-    }
+
 
     if (req.query.customerKey) {
       const k = String(req.query.customerKey);
@@ -89,8 +77,7 @@ router.get("/", async (req, res) => {
 
 // ─── POST /api/bills ──────────────────────────────────────────────────────────
 router.post("/", authMiddleware, async (req, res) => {
-  console.log("RECEIVED DATE:", req.body.date);
-  console.log("FULL BODY:", JSON.stringify(req.body)); 
+  console.log("RECEIVED DATE:", req.body.date); 
   try {
     const items = Array.isArray(req.body.items) ? req.body.items : [];
 
@@ -306,7 +293,7 @@ router.post("/apply-discount", authMiddleware, async (req, res) => {
 });
 
 // ─── GET /api/bills/analytics ─────────────────────────────────────────────────
-router.get("/analytics", async (req, res) => {
+router.get("/analytics", authMiddleware, async (req, res) => {
   try {
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -392,7 +379,7 @@ router.get("/analytics", async (req, res) => {
   }
 });
 // ─── GET /api/bills/item-report ───────────────────────────────────────────────
-router.get("/item-report", async (req, res) => {
+router.get("/item-report", authMiddleware, async (req, res) => {
   try {
     const { from, to } = req.query;
     const match = {};
@@ -507,7 +494,7 @@ router.delete("/all", authMiddleware, async (req, res) => {
 });
 // ─── GET /api/bills/sales-summary ────────────────────────────────────────────
 // SalesView ke KPI cards ke liye summary
-router.get("/sales-summary", async (req, res) => {
+router.get("/sales-summary", authMiddleware, async (req, res) => {
   try {
     const filter = {};
 
@@ -590,7 +577,7 @@ router.get("/sales-summary", async (req, res) => {
 });
 
 // ─── PUT /api/bills/:id ───────────────────────────────────────────────────────
-router.put("/:id", async (req, res) => {
+router.put("/:id", authMiddleware, async (req, res) => {
   try {
     const bill = await Bill.findOne({ id: req.params.id });
     if (!bill) return res.status(404).json({ error: "Bill not found" });
@@ -613,7 +600,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // ─── DELETE /api/bills/:id ────────────────────────────────────────────────────
-router.delete("/:id", async (req, res) => {
+router.delete("/:id",authMiddleware, async (req, res) => {
   try {
     await Bill.findOneAndDelete({ id: req.params.id });
     res.json({ success: true });
@@ -623,7 +610,7 @@ router.delete("/:id", async (req, res) => {
 });
 
 // ─── GET /api/bills/:id ───────────────────────────────────────────────────────
-router.get("/:id", async (req, res) => {
+router.get("/:id", authMiddleware, async (req, res) => {
   try {
     const bill = await Bill.findOne({ id: req.params.id }).lean();
     if (!bill) return res.status(404).json({ error: "Bill not found" });

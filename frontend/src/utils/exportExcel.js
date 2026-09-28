@@ -15,10 +15,19 @@ function formatItems(items) {
     return `${i.name} ${qty}`;
   }).join(", ");
 }
-
+function splitAmounts(b) {
+  const mode = b.paymentMode || "CASH";
+  const total = Number(b.total) || 0;
+  if (mode.startsWith("SPLIT")) {
+    const m = mode.match(/Cash:([\d.]+)\s+UPI:([\d.]+)/i);
+    return m ? { cash: Number(m[1]), upi: Number(m[2]) } : { cash: total, upi: 0 };
+  }
+  if (mode === "UPI") return { cash: 0, upi: total };
+  return { cash: total, upi: 0 };
+}
 export function exportToExcel(bills, filter, customDate) {
-  const totalCash = Math.round(bills.filter((b) => (b.paymentMode || "CASH") === "CASH").reduce((s, b) => s + b.total, 0));
-  const totalUPI  = Math.round(bills.filter((b) => b.paymentMode === "UPI").reduce((s, b) => s + b.total, 0));
+  const totalCash = Math.round(bills.reduce((s, b) => s + splitAmounts(b).cash, 0));
+  const totalUPI  = Math.round(bills.reduce((s, b) => s + splitAmounts(b).upi, 0));
   const grandTotal = Math.round(bills.reduce((s, b) => s + b.total, 0));
 
   const summaryRow = {

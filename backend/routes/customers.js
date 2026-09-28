@@ -3,7 +3,7 @@ const authMiddleware = require("../middleware/auth");
 const Customer = require("../models/Customer");
 const Bill     = require("../models/Bill");
 
-router.get("/", async (req, res) => {
+router.get("/", authMiddleware, async (req, res) => {
   try {
     const search = (req.query.search || "").trim();
     const rx = search ? new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") : null;
@@ -52,7 +52,7 @@ router.get("/", async (req, res) => {
 });
 
 // GET /api/customers/:phone — single customer + uski bills
-router.get("/:phone", async (req, res) => {
+router.get("/:phone", authMiddleware, async (req, res) => {
   try {
     const customer = await Customer.findOne({ phone: req.params.phone });
     if (!customer) return res.status(404).json({ error: "Customer not found" });

@@ -104,128 +104,234 @@ const triggerDelete = async () => {
     return;
   }
 
-  // TOKEN ENTER KARO
-  const tokenNumber = prompt(
-    "Enter Token Number\n\nExample: 356"
+  const action = prompt(
+    "DELETE OPTION:\n\n" +
+    "1 = Delete selected items from a bill\n" +
+    "2 = Delete complete single bill\n\n" +
+    "Enter 1 or 2:"
   );
 
-  if (!tokenNumber) return;
+  if (!action) return;
 
-  try {
-    // Saari bills me token search
-    const result = await apiCall("/bills?limit=10000");
-
-    const allBills = result.bills || result || [];
-
-    const bill = allBills.find(
-      (b) => String(b.id?.slice(-3)) === String(tokenNumber).padStart(3, "0")
+  // =========================================================
+  // 1 = DELETE SELECTED ITEMS FROM BILL
+  // =========================================================
+  if (action === "1") {
+    const tokenNumber = prompt(
+      "Enter Token Number\n\nExample: 356"
     );
 
-    if (!bill) {
-      alert(`❌ Token ${tokenNumber} ka bill nahi mila.`);
-      return;
-    }
+    if (!tokenNumber) return;
 
-    if (!bill.items || bill.items.length === 0) {
-      alert("❌ Is bill mein koi item nahi hai.");
-      return;
-    }
+    try {
+      const result = await apiCall("/bills?limit=10000");
+      const allBills = result.bills || result || [];
 
-    // ITEMS SHOW KARO
-    const itemList = bill.items
-      .map(
-        (item, index) =>
-          `${index + 1}. ${item.name} | Qty: ${item.qty} | ₹${item.total}`
-      )
-      .join("\n");
-
-    const itemInput = prompt(
-      `TOKEN: ${tokenNumber}\n\n` +
-      `ITEMS:\n${itemList}\n\n` +
-      `Delete karne wale item numbers enter karo.\n` +
-      `Example: 1,3`
-    );
-
-    if (!itemInput) return;
-
-    // Selected indexes
-    const indexes = itemInput
-      .split(",")
-      .map((x) => Number(x.trim()) - 1)
-      .filter(
-        (x) =>
-          Number.isInteger(x) &&
-          x >= 0 &&
-          x < bill.items.length
+      const bill = allBills.find(
+        (b) =>
+          String(b.id?.slice(-3)) ===
+          String(tokenNumber).padStart(3, "0")
       );
 
-    if (!indexes.length) {
-      alert("❌ Invalid item number.");
-      return;
-    }
-
-    const uniqueIndexes = [...new Set(indexes)];
-
-    const deletedItems = uniqueIndexes.map(
-      (index) => bill.items[index]
-    );
-
-    const remainingItems = bill.items.filter(
-      (_, index) => !uniqueIndexes.includes(index)
-    );
-
-    if (remainingItems.length === 0) {
-      alert(
-        "❌ Saare items delete nahi kar sakte.\n\n" +
-        "Agar poora bill delete karna hai to alag se bill deletion use karo."
-      );
-      return;
-    }
-
-    const deletedList = deletedItems
-      .map((item) => `• ${item.name} - ₹${item.total}`)
-      .join("\n");
-
-    const confirmDelete = window.confirm(
-      `⚠️ CONFIRM ITEM DELETE\n\n` +
-      `Token: ${tokenNumber}\n\n` +
-      `Delete hone wale items:\n` +
-      `${deletedList}\n\n` +
-      `Remaining Items: ${remainingItems.length}\n\n` +
-      `Continue?`
-    );
-
-    if (!confirmDelete) return;
-
-    // Existing PUT route se bill update
-    const updated = await apiCall(
-      `/bills/${bill.id}`,
-      "PUT",
-      {
-        items: remainingItems,
-        discountPct: bill.discountPct || 0,
+      if (!bill) {
+        alert(`❌ Token ${tokenNumber} ka bill nahi mila.`);
+        return;
       }
-    );
 
-    // Local state update
-    setBills((prev) =>
-      prev.map((b) => (b.id === bill.id ? updated : b))
-    );
+      if (!bill.items || bill.items.length === 0) {
+        alert("❌ Is bill mein koi item nahi hai.");
+        return;
+      }
 
-    alert(
-      `✅ Items Deleted!\n\n` +
-      `Token: ${tokenNumber}\n` +
-      `Deleted: ${deletedItems.length} item(s)\n` +
-      `Remaining: ${remainingItems.length} item(s)\n` +
-      `New Total: ₹${Math.round(updated.total)}`
-    );
+      const itemList = bill.items
+        .map(
+          (item, index) =>
+            `${index + 1}. ${item.name} | Qty: ${item.qty} | ₹${item.total}`
+        )
+        .join("\n");
 
-    window.location.reload();
+      const itemInput = prompt(
+        `TOKEN: ${tokenNumber}\n\n` +
+        `ITEMS:\n${itemList}\n\n` +
+        `Delete karne wale item numbers enter karo.\n` +
+        `Example: 1,3`
+      );
 
-  } catch (error) {
-    console.error("❌ TOKEN ITEM DELETE ERROR:", error);
-    alert("❌ Item delete nahi hua: " + error.message);
+      if (!itemInput) return;
+
+      const indexes = itemInput
+        .split(",")
+        .map((x) => Number(x.trim()) - 1)
+        .filter(
+          (x) =>
+            Number.isInteger(x) &&
+            x >= 0 &&
+            x < bill.items.length
+        );
+
+      if (!indexes.length) {
+        alert("❌ Invalid item number.");
+        return;
+      }
+
+      const uniqueIndexes = [...new Set(indexes)];
+
+      const deletedItems = uniqueIndexes.map(
+        (index) => bill.items[index]
+      );
+
+      const remainingItems = bill.items.filter(
+        (_, index) => !uniqueIndexes.includes(index)
+      );
+
+      // Last item ko item-delete se remove mat karo
+      if (remainingItems.length === 0) {
+        alert(
+          "❌ Saare items delete nahi kar sakte.\n\n" +
+          "Agar poora bill delete karna hai to option 2 use karo."
+        );
+        return;
+      }
+
+      const deletedList = deletedItems
+        .map(
+          (item) =>
+            `• ${item.name} - ₹${item.total}`
+        )
+        .join("\n");
+
+      const confirmDelete = window.confirm(
+        `⚠️ CONFIRM ITEM DELETE\n\n` +
+        `Token: ${tokenNumber}\n\n` +
+        `Delete hone wale items:\n` +
+        `${deletedList}\n\n` +
+        `Remaining Items: ${remainingItems.length}\n\n` +
+        `Continue?`
+      );
+
+      if (!confirmDelete) return;
+
+      const updated = await apiCall(
+        `/bills/${bill.id}`,
+        "PUT",
+        {
+          items: remainingItems,
+          discountPct: bill.discountPct || 0,
+        }
+      );
+
+      setBills((prev) =>
+        prev.map((b) =>
+          b.id === bill.id ? updated : b
+        )
+      );
+
+      alert(
+        `✅ Items Deleted!\n\n` +
+        `Token: ${tokenNumber}\n` +
+        `Deleted: ${deletedItems.length} item(s)\n` +
+        `Remaining: ${remainingItems.length} item(s)\n` +
+        `New Total: ₹${Math.round(updated.total)}`
+      );
+
+      window.location.reload();
+
+    } catch (error) {
+      console.error(
+        "❌ TOKEN ITEM DELETE ERROR:",
+        error
+      );
+
+      alert(
+        "❌ Item delete nahi hua: " +
+        error.message
+      );
+    }
+
+    return;
   }
+
+  // =========================================================
+  // 2 = DELETE COMPLETE SINGLE BILL
+  // =========================================================
+  if (action === "2") {
+    const tokenNumber = prompt(
+      "Enter Token Number\n\nExample: 356"
+    );
+
+    if (!tokenNumber) return;
+
+    try {
+      const result = await apiCall("/bills?limit=10000");
+      const allBills = result.bills || result || [];
+
+      const bill = allBills.find(
+        (b) =>
+          String(b.id?.slice(-3)) ===
+          String(tokenNumber).padStart(3, "0")
+      );
+
+      if (!bill) {
+        alert(`❌ Token ${tokenNumber} ka bill nahi mila.`);
+        return;
+      }
+
+      const itemCount = bill.items?.length || 0;
+      const total = Math.round(Number(bill.total) || 0);
+
+      const confirmDelete = window.confirm(
+        `⚠️ DELETE COMPLETE BILL\n\n` +
+        `Token: ${tokenNumber}\n` +
+        `Items: ${itemCount}\n` +
+        `Total: ₹${total}\n\n` +
+        `⚠️ Poora bill permanently delete ho jayega.\n\n` +
+        `Continue?`
+      );
+
+      if (!confirmDelete) return;
+
+      // Final confirmation
+      const finalConfirm = window.confirm(
+        `🚨 FINAL CONFIRMATION\n\n` +
+        `Token ${tokenNumber} ka POORA BILL DELETE karna hai?\n\n` +
+        `YES = Permanently Delete`
+      );
+
+      if (!finalConfirm) return;
+
+      await apiCall(
+        `/bills/${bill.id}`,
+        "DELETE"
+      );
+
+      setBills((prev) =>
+        prev.filter((b) => b.id !== bill.id)
+      );
+
+      alert(
+        `✅ Bill Deleted Successfully!\n\n` +
+        `Token: ${tokenNumber}\n` +
+        `Amount: ₹${total}`
+      );
+
+      window.location.reload();
+
+    } catch (error) {
+      console.error(
+        "❌ SINGLE BILL DELETE ERROR:",
+        error
+      );
+
+      alert(
+        "❌ Bill delete nahi hua: " +
+        error.message
+      );
+    }
+
+    return;
+  }
+
+  alert("❌ Invalid option. Sirf 1 ya 2 enter karo.");
 };
 
   useEffect(() => {

@@ -133,7 +133,7 @@ router.post("/", authMiddleware, async (req, res) => {
 });
 
 // ─── POST /api/bills/apply-discount ──────────────────────────────────────────
-// Remove items/quantity by VALUE percentage for selected date range
+// Remove approximately X% ITEM VALUE from EACH BILL individually
 router.post("/apply-discount", authMiddleware, async (req, res) => {
   try {
     const {
@@ -151,7 +151,7 @@ router.post("/apply-discount", authMiddleware, async (req, res) => {
       percentage >= 100
     ) {
       return res.status(400).json({
-        error: "Invalid percentage. Enter a value between 1 and 99."
+        error: "Invalid percentage. Enter between 1 and 99."
       });
     }
 
@@ -177,7 +177,7 @@ router.post("/apply-discount", authMiddleware, async (req, res) => {
       });
     }
 
-    // Get all bills from selected date range
+    // Get bills in selected date range
     const bills = await Bill.find({
       date: {
         $gte: start,
@@ -194,112 +194,110 @@ router.post("/apply-discount", authMiddleware, async (req, res) => {
       });
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // STEP 1:
-    // Calculate TOTAL ITEM VALUE across selected bills
-    // ─────────────────────────────────────────────────────────────
-
-    let totalItemValue = 0;
-
-    for (const bill of bills) {
-      for (const item of bill.items || []) {
-        const qty = Number(item.qty) || 0;
-        const price = Number(item.price) || 0;
-
-        totalItemValue += price * qty;
-      }
-    }
-
-    const targetRemoveValue =
-      totalItemValue * (percentage / 100);
-
-    if (targetRemoveValue <= 0) {
-      return res.json({
-        success: true,
-        updated: 0,
-        removedValue: 0,
-        totalItemValue,
-        targetRemoveValue: 0,
-        message: "No item value available for removal."
-      });
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // STEP 2:
-    // Remove item QUANTITY according to selling VALUE.
-    //
-    // Example:
-    // Total = ₹10,000
-    // 50% = ₹5,000 target removal
-    //
-    // Items are processed from oldest bill/item to newest.
-    // For each item, only the quantity needed to approach the
-    // target value is removed.
-    // ─────────────────────────────────────────────────────────────
-
-    let remainingToRemove = targetRemoveValue;
-    let removedValue = 0;
-    let updated = 0;
-
     const bulkOps = [];
 
-    for (const bill of bills) {
-      if (remainingToRemove <= 0) break;
+    let totalRemovedValue = 0;
+    let billsUpdated = 0;
 
+    // ============================================================
+    // IMPORTANT:
+    // EACH BILL IS PROCESSED SEPARATELY.
+    //
+    // Example:
+    // Bill A = ₹1000 → 50% target = ₹500
+    // Bill B = ₹2000 → 50% target = ₹1000
+    // Bill C = ₹500  → 50% target = ₹250
+    //
+    // NOT:
+    // All bills total ₹3500 → remove ₹1750 globally.
+    // ============================================================
+
+    for (const bill of bills) {
       const oldItems = Array.isArray(bill.items)
         ? bill.items
         : [];
 
-      const newItems = [];
+      if (!oldItems.length) continue;
 
-      let billChanged = false;
+      // ----------------------------------------------------------
+      // Calculate THIS BILL'S total item value
+      // ----------------------------------------------------------
+
+      let billItemValue = 0;
 
       for (const item of oldItems) {
         const qty = Number(item.qty) || 0;
         const price = Number(item.price) || 0;
 
-        if (qty <= 0 || price <= 0 || remainingToRemove <= 0) {
+        billItemValue += qty * price;
+      }
+
+      if (billItemValue <= 0) continue;
+
+      // Target removal for THIS BILL only
+      let remainingToRemove =
+        billItemValue * (percentage / 100);
+
+      const originalTarget =
+        remainingToRemove;
+
+      const newItems = [];
+
+      // ----------------------------------------------------------
+      // Remove item VALUE from THIS BILL
+      // ----------------------------------------------------------
+
+      for (const item of oldItems) {
+        const qty = Number(item.qty) || 0;
+        const price = Number(item.price) || 0;
+
+        if (
+          qty <= 0 ||
+          price <= 0 ||
+          remainingToRemove <= 0.01
+        ) {
           newItems.push(item);
           continue;
         }
 
-        const itemValue = price * qty;
+        const itemValue = qty * price;
 
+        // --------------------------------------------------------
+        // CASE 1:
         // Entire item quantity can be removed
+        // --------------------------------------------------------
+
         if (itemValue <= remainingToRemove + 0.01) {
           remainingToRemove -= itemValue;
-          removedValue += itemValue;
 
-          billChanged = true;
-
-          // Don't push item => completely removed
+          // Item completely removed
           continue;
         }
 
+        // --------------------------------------------------------
+        // CASE 2:
         // Only part of quantity needs to be removed
-        const maxRemovableQty = Math.min(
-          qty,
-          Math.floor((remainingToRemove / price) * 100) / 100
-        );
+        // --------------------------------------------------------
 
-        let removeQty = maxRemovableQty;
+        let removeQty =
+          remainingToRemove / price;
 
-        // Avoid floating point tiny values
-        if (removeQty < 0.0001) {
-          newItems.push(item);
-          continue;
-        }
+        // Keep quantity precision up to 3 decimals
+        removeQty =
+          Math.floor(removeQty * 1000) / 1000;
 
-        const remainingQty = +(qty - removeQty).toFixed(3);
+        // Safety
+        removeQty = Math.min(removeQty, qty);
 
-        const actualRemovedValue = removeQty * price;
+        const remainingQty =
+          +(qty - removeQty).toFixed(3);
 
-        removedValue += actualRemovedValue;
+        const actualRemovedValue =
+          removeQty * price;
+
         remainingToRemove -= actualRemovedValue;
 
-        billChanged = true;
-
-        // If nothing remains, remove complete item
+        // Nothing left
         if (remainingQty <= 0) {
           continue;
         }
@@ -311,105 +309,113 @@ router.post("/apply-discount", authMiddleware, async (req, res) => {
         });
       }
 
-      // If this bill changed, recalculate everything
-      if (billChanged) {
-        const subtotal = +newItems
-          .reduce(
-            (sum, item) =>
-              sum +
-              (Number(item.price) || 0) *
-              (Number(item.qty) || 0),
-            0
-          )
-          .toFixed(2);
+      // ----------------------------------------------------------
+      // Calculate actual removed value for THIS BILL
+      // ----------------------------------------------------------
 
-        const cost = +newItems
-          .reduce(
-            (sum, item) =>
-              (sum +
-                (Number(item.cost) || 0) *
-                (Number(item.qty) || 0)),
-            0
-          )
-          .toFixed(2);
+      const newSubtotal = +newItems
+        .reduce(
+          (sum, item) =>
+            sum +
+            (Number(item.price) || 0) *
+            (Number(item.qty) || 0),
+          0
+        )
+        .toFixed(2);
 
-        // IMPORTANT:
-        // This is NOT a monetary discount.
-        // Discount fields are reset to zero.
-        const total = subtotal;
-        const discountPct = 0;
-        const discountAmt = 0;
+      const actualRemovedValue =
+        +(billItemValue - newSubtotal).toFixed(2);
 
-        // Existing project logic keeps profit at 0.
-        const profit = 0;
+      // Nothing actually changed
+      if (actualRemovedValue <= 0) {
+        continue;
+      }
 
-        bulkOps.push({
-          updateOne: {
-            filter: {
-              _id: bill._id
-            },
+      // ----------------------------------------------------------
+      // Recalculate THIS BILL
+      // ----------------------------------------------------------
 
-            update: {
-              $set: {
-                items: newItems,
-                subtotal,
-                total,
-                cost,
-                profit,
+      const newCost = +newItems
+        .reduce(
+          (sum, item) =>
+            sum +
+            (Number(item.cost) || 0) *
+            (Number(item.qty) || 0),
+          0
+        )
+        .toFixed(2);
 
-                // Remove old discount information
-                discountPct,
-                discountAmt,
-                discountApplied: false
-              }
+      // IMPORTANT:
+      // This is ITEM REMOVAL, NOT monetary discount.
+      const newTotal = newSubtotal;
+
+      const newProfit = 0;
+
+      bulkOps.push({
+        updateOne: {
+          filter: {
+            _id: bill._id
+          },
+
+          update: {
+            $set: {
+              items: newItems,
+
+              subtotal: newSubtotal,
+              total: newTotal,
+              cost: newCost,
+              profit: newProfit,
+
+              // Remove any old discount information
+              discountPct: 0,
+              discountAmt: 0,
+              discountApplied: false
             }
           }
-        });
+        }
+      });
 
-        updated++;
-      }
+      billsUpdated++;
+      totalRemovedValue += actualRemovedValue;
+
+      console.log(
+        `🗑️ Bill ${bill.id}`,
+        `| Original: ₹${billItemValue.toFixed(2)}`,
+        `| Target: ₹${originalTarget.toFixed(2)}`,
+        `| Removed: ₹${actualRemovedValue.toFixed(2)}`,
+        `| Remaining: ₹${newSubtotal.toFixed(2)}`
+      );
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // STEP 3:
-    // Save all affected bills
-    // ─────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------
+    // Save all changed bills
+    // ------------------------------------------------------------
 
-    if (bulkOps.length) {
+    if (bulkOps.length > 0) {
       await Bill.bulkWrite(bulkOps, {
         ordered: false
       });
     }
 
-    const roundedRemovedValue =
-      +removedValue.toFixed(2);
-
     console.log(
-      `✅ Item value removal completed`,
+      `✅ PER-BILL ITEM REMOVAL`,
       `| ${percentage}%`,
       `| ${fromDate} → ${toDate}`,
-      `| Total Value: ₹${totalItemValue.toFixed(2)}`,
-      `| Target: ₹${targetRemoveValue.toFixed(2)}`,
-      `| Removed: ₹${roundedRemovedValue.toFixed(2)}`,
-      `| Bills: ${updated}`
+      `| Bills Updated: ${billsUpdated}`,
+      `| Total Removed Value: ₹${totalRemovedValue.toFixed(2)}`
     );
 
     res.json({
       success: true,
-      updated,
-      removedValue: roundedRemovedValue,
-      totalItemValue: +totalItemValue.toFixed(2),
-      targetRemoveValue: +targetRemoveValue.toFixed(2),
-      remainingValue: +(
-        totalItemValue - roundedRemovedValue
-      ).toFixed(2),
+      updated: billsUpdated,
+      removedValue: +totalRemovedValue.toFixed(2),
       percentage,
       fromDate,
       toDate
     });
 
   } catch (err) {
-    console.error("❌ ITEM VALUE REMOVAL ERROR:", err);
+    console.error("❌ PER-BILL ITEM REMOVAL ERROR:", err);
 
     res.status(500).json({
       error: err.message

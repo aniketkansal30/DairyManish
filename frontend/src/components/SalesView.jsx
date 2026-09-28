@@ -80,8 +80,14 @@ export default function SalesView({
 
   // ─── Filter list on clientside only by paymentMode ─────────────────────────
   const filtered = bills.filter((b) => {
-    if (payFilter !== "ALL" && (b.paymentMode || "CASH") !== payFilter) return false;
-    return true;
+    if (payFilter === "ALL") return true;
+    const mode = b.paymentMode || "CASH";
+    if (mode.startsWith("SPLIT")) {
+      const m = mode.match(/Cash:([\d.]+)\s+UPI:([\d.]+)/i);
+      if (!m) return payFilter === "CASH";
+      return payFilter === "CASH" ? Number(m[1]) > 0 : Number(m[2]) > 0;
+    }
+    return mode === payFilter;
   });
 
   // KPI card calculations using 100% accurate database-driven summary
@@ -139,7 +145,15 @@ const checkAdminPassword = () => {
 
       const allBillsRes = await apiCall(`/bills?${queryParams}&noLimit=true&limit=1000000`);
       const allBills = Array.isArray(allBillsRes) ? allBillsRes : (allBillsRes.bills || []);
-      const toExport = payFilter === "ALL" ? allBills : allBills.filter(b => (b.paymentMode || "CASH") === payFilter);
+      const toExport = payFilter === "ALL" ? allBills : allBills.filter((b) => {
+        const mode = b.paymentMode || "CASH";
+        if (mode.startsWith("SPLIT")) {
+          const m = mode.match(/Cash:([\d.]+)\s+UPI:([\d.]+)/i);
+          if (!m) return payFilter === "CASH";
+          return payFilter === "CASH" ? Number(m[1]) > 0 : Number(m[2]) > 0;
+        }
+        return mode === payFilter;
+      });
 
       exportToExcel(toExport, filter, filter === "custom" ? (startDate === endDate || !endDate ? startDate : `${startDate}_${endDate}`) : null);
     } catch (e) {
@@ -248,7 +262,7 @@ const checkAdminPassword = () => {
             <div style={{ fontSize: 12, color: "#8a7e6e" }}>{b.items?.length} items</div>
             {b.discountPct > 0 && <div style={{ fontSize: 12, color: "#f59e0b", fontWeight: 700 }}>🏷️ {b.discountPct}% off</div>}
             <div style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 20, background: (b.paymentMode || "CASH") === "UPI" ? "#eff6ff" : "#f0fdf4", color: (b.paymentMode || "CASH") === "UPI" ? "#2563eb" : "#16a34a" }}>
-              {(b.paymentMode || "CASH") === "UPI" ? "📲 UPI" : "💵 CASH"}
+              {(b.paymentMode || "CASH").startsWith("SPLIT") ? "✂️ SPLIT" : (b.paymentMode || "CASH") === "UPI" ? "📲 UPI" : "💵 CASH"}
             </div>
             <div style={{ textAlign: "right" }}>{formatINR(b.total)}</div>
             <button onClick={() => handleEditClick(b)}

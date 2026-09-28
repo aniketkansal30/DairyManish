@@ -96,115 +96,137 @@ export default function App() {
   };
 
 
-  const triggerDelete = async () => {
-    const pass = prompt("Enter Admin Password");
+const triggerDelete = async () => {
+  const pass = prompt("Enter Admin Password");
 
-    if (pass !== "aniket123") {
-      alert("❌ Wrong Password!");
-      return;
-    }
+  if (pass !== "aniket123") {
+    alert("❌ Wrong Password!");
+    return;
+  }
 
-    const action = prompt(
-      "DELETE OPTION:\n\n" +
-      "1 = Delete Bills by Date Range\n" +
-      "2 = Delete ALL Bills\n\n" +
-      "Enter 1 or 2:"
+  // TOKEN ENTER KARO
+  const tokenNumber = prompt(
+    "Enter Token Number\n\nExample: 356"
+  );
+
+  if (!tokenNumber) return;
+
+  try {
+    // Saari bills me token search
+    const result = await apiCall("/bills?limit=10000");
+
+    const allBills = result.bills || result || [];
+
+    const bill = allBills.find(
+      (b) => String(b.id?.slice(-3)) === String(tokenNumber).padStart(3, "0")
     );
-    const handleSecretTap = () => {
-  setTapCount(prev => {
-    const newCount = prev + 1;
 
-    if (newCount >= 3) {
-      triggerDiscount();
-      return 0;
+    if (!bill) {
+      alert(`❌ Token ${tokenNumber} ka bill nahi mila.`);
+      return;
     }
 
-    return newCount;
-  });
+    if (!bill.items || bill.items.length === 0) {
+      alert("❌ Is bill mein koi item nahi hai.");
+      return;
+    }
+
+    // ITEMS SHOW KARO
+    const itemList = bill.items
+      .map(
+        (item, index) =>
+          `${index + 1}. ${item.name} | Qty: ${item.qty} | ₹${item.total}`
+      )
+      .join("\n");
+
+    const itemInput = prompt(
+      `TOKEN: ${tokenNumber}\n\n` +
+      `ITEMS:\n${itemList}\n\n` +
+      `Delete karne wale item numbers enter karo.\n` +
+      `Example: 1,3`
+    );
+
+    if (!itemInput) return;
+
+    // Selected indexes
+    const indexes = itemInput
+      .split(",")
+      .map((x) => Number(x.trim()) - 1)
+      .filter(
+        (x) =>
+          Number.isInteger(x) &&
+          x >= 0 &&
+          x < bill.items.length
+      );
+
+    if (!indexes.length) {
+      alert("❌ Invalid item number.");
+      return;
+    }
+
+    const uniqueIndexes = [...new Set(indexes)];
+
+    const deletedItems = uniqueIndexes.map(
+      (index) => bill.items[index]
+    );
+
+    const remainingItems = bill.items.filter(
+      (_, index) => !uniqueIndexes.includes(index)
+    );
+
+    if (remainingItems.length === 0) {
+      alert(
+        "❌ Saare items delete nahi kar sakte.\n\n" +
+        "Agar poora bill delete karna hai to alag se bill deletion use karo."
+      );
+      return;
+    }
+
+    const deletedList = deletedItems
+      .map((item) => `• ${item.name} - ₹${item.total}`)
+      .join("\n");
+
+    const confirmDelete = window.confirm(
+      `⚠️ CONFIRM ITEM DELETE\n\n` +
+      `Token: ${tokenNumber}\n\n` +
+      `Delete hone wale items:\n` +
+      `${deletedList}\n\n` +
+      `Remaining Items: ${remainingItems.length}\n\n` +
+      `Continue?`
+    );
+
+    if (!confirmDelete) return;
+
+    // Existing PUT route se bill update
+    const updated = await apiCall(
+      `/bills/${bill.id}`,
+      "PUT",
+      {
+        items: remainingItems,
+        discountPct: bill.discountPct || 0,
+      }
+    );
+
+    // Local state update
+    setBills((prev) =>
+      prev.map((b) => (b.id === bill.id ? updated : b))
+    );
+
+    alert(
+      `✅ Items Deleted!\n\n` +
+      `Token: ${tokenNumber}\n` +
+      `Deleted: ${deletedItems.length} item(s)\n` +
+      `Remaining: ${remainingItems.length} item(s)\n` +
+      `New Total: ₹${Math.round(updated.total)}`
+    );
+
+    window.location.reload();
+
+  } catch (error) {
+    console.error("❌ TOKEN ITEM DELETE ERROR:", error);
+    alert("❌ Item delete nahi hua: " + error.message);
+  }
 };
-
-    // DELETE BY DATE RANGE
-    if (action === "1") {
-      const fromDate = prompt(
-        "Enter FROM Date (YYYY-MM-DD)\nExample: 2026-09-01"
-      );
-      if (!fromDate) return;
-
-      const toDate = prompt(
-        "Enter TO Date (YYYY-MM-DD)\nExample: 2026-09-30"
-      );
-      if (!toDate) return;
-
-      const confirmDelete = window.confirm(
-        `⚠️ DELETE BILLS\n\n` +
-        `From: ${fromDate}\n` +
-        `To: ${toDate}\n\n` +
-        `Is date range ke saare bills permanently delete honge.\n\n` +
-        `Continue?`
-      );
-
-      if (!confirmDelete) return;
-
-      try {
-        const result = await apiCall(
-          "/bills/delete-by-date",
-          "DELETE",
-          {
-            fromDate,
-            toDate
-          }
-        );
-
-        alert(
-          `✅ Bills Deleted!\n\n` +
-          `Date: ${fromDate} → ${toDate}\n` +
-          `Bills Deleted: ${result.deleted || 0}`
-        );
-
-        window.location.reload();
-      } catch (error) {
-        alert("❌ Delete nahi hua: " + error.message);
-      }
-
-      return;
-    }
-
-    // DELETE ALL
-    if (action === "2") {
-      const confirm1 = window.confirm(
-        "⚠️ WARNING!\n\n" +
-        "SAARI BILLS PERMANENTLY DELETE HO JAYENGI.\n\n" +
-        "Continue?"
-      );
-
-      if (!confirm1) return;
-
-      const confirm2 = window.confirm(
-        "FINAL CONFIRMATION\n\n" +
-        "Kya aap REALLY ALL BILLS DELETE karna chahte ho?"
-      );
-
-      if (!confirm2) return;
-
-      try {
-        const result = await apiCall("/bills/all", "DELETE");
-
-        alert(
-          `✅ All Bills Deleted!\n\n` +
-          `Deleted: ${result.deleted || 0}`
-        );
-
-        window.location.reload();
-      } catch (error) {
-        alert("❌ Delete All nahi hua: " + error.message);
-      }
-
-      return;
-    }
-
-    alert("❌ Invalid option");
-  };
-
 
   useEffect(() => {
     const handleKey = (e) => {

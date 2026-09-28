@@ -51,10 +51,6 @@ export function printBill(bill) {
   `).join("")}
 
   <div class="divider-dash"></div>
-  ${bill.discountPct > 0 ? `
-    <div class="row"><span>Subtotal</span><span>₹${Math.round(bill.subtotal)}</span></div>
-    <div class="row bold"><span>Discount (${bill.discountPct}%)</span><span>-₹${Math.round(bill.discountAmt)}</span></div>
-  ` : ""}
   <div class="divider-solid"></div>
   <div class="total-row"><span>TOTAL</span><span>₹${Math.round(bill.total)}</span></div>
   <div class="divider-solid"></div>

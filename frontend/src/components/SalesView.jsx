@@ -260,7 +260,6 @@ const checkAdminPassword = () => {
             </div>
             {b.customer?.name && <div style={{ fontSize: 12, color: "#4a3f35" }}>👤 {b.customer.name}</div>}
             <div style={{ fontSize: 12, color: "#8a7e6e" }}>{b.items?.length} items</div>
-            {b.discountPct > 0 && <div style={{ fontSize: 12, color: "#f59e0b", fontWeight: 700 }}>🏷️ {b.discountPct}% off</div>}
             <div style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 20, background: (b.paymentMode || "CASH") === "UPI" ? "#eff6ff" : "#f0fdf4", color: (b.paymentMode || "CASH") === "UPI" ? "#2563eb" : "#16a34a" }}>
               {(b.paymentMode || "CASH").startsWith("SPLIT") ? "✂️ SPLIT" : (b.paymentMode || "CASH") === "UPI" ? "📲 UPI" : "💵 CASH"}
             </div>

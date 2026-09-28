@@ -9,6 +9,12 @@ function istRange(dateStr, endDateStr) {
   const end = new Date((endDateStr || dateStr) + "T23:59:59+05:30");
   return { $gte: start, $lte: end };
 }
+function getTodayISTRange() {
+  const todayStr = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  return istRange(todayStr);
+}
 
 // ─── GET /api/bills ───────────────────────────────────────────────────────────
 // Paginated + filtered bill list (no more full-collection scans)
@@ -344,6 +350,44 @@ router.get("/analytics", async (req, res) => {
       recent: recentRaw
     });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// ─── GET /api/bills/item-report ───────────────────────────────────────────────
+router.get("/item-report", async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    const match = {};
+    if (from && to) match.date = istRange(from, to);
+
+    const data = await Bill.aggregate([
+      { $match: match },
+      { $unwind: "$items" },
+      {
+        $group: {
+          _id: "$items.name",
+          category: { $first: "$items.category" },
+          unit: { $first: "$items.unit" },
+          qty: { $sum: "$items.qty" },
+          revenue: { $sum: "$items.total" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          name: "$_id",
+          category: 1,
+          unit: 1,
+          qty: 1,
+          revenue: 1,
+        },
+      },
+      { $sort: { revenue: -1 } },
+    ]);
+
+    res.json(data);
+  } catch (err) {
+    console.error("❌ ITEM REPORT ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });

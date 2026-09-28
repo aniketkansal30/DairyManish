@@ -41,60 +41,76 @@ export default function App() {
   // Ctrl + Shift + D → Discount
   // Ctrl + Shift + X → Delete
 
-  const triggerDiscount = async () => {
-    const pass = prompt("Enter Admin Password");
+ const triggerDiscount = async () => {
+  const pass = prompt("Enter Admin Password");
 
-    if (pass !== "aniket123") {
-      alert("❌ Wrong Password!");
-      return;
-    }
+  if (pass !== "aniket123") {
+    alert("❌ Wrong Password!");
+    return;
+  }
 
-    const fromDate = prompt(
-      "Enter FROM Date (YYYY-MM-DD)\nExample: 2026-09-01"
+  const fromDate = prompt(
+    "Enter FROM Date (YYYY-MM-DD)\nExample: 2026-09-01"
+  );
+
+  if (!fromDate) return;
+
+  const toDate = prompt(
+    "Enter TO Date (YYYY-MM-DD)\nExample: 2026-09-30"
+  );
+
+  if (!toDate) return;
+
+  const percentage = prompt(
+    "Enter Item Removal %\n\n" +
+    "Example: 50 = selected date range ke total item value ka 50% remove hoga."
+  );
+
+  const percentageNumber = Number(percentage);
+
+  if (
+    !percentage ||
+    !Number.isFinite(percentageNumber) ||
+    percentageNumber <= 0 ||
+    percentageNumber >= 100
+  ) {
+    alert("❌ Invalid percentage");
+    return;
+  }
+
+  const confirmApply = window.confirm(
+    `⚠️ REMOVE ITEMS BY VALUE\n\n` +
+    `Percentage: ${percentageNumber}%\n` +
+    `From: ${fromDate}\n` +
+    `To: ${toDate}\n\n` +
+    `Selected date range ke total item value ka approximately ` +
+    `${percentageNumber}% items/quantity remove hoga.\n\n` +
+    `Ye monetary discount NAHI hai.\n` +
+    `Continue?`
+  );
+
+  if (!confirmApply) return;
+
+  try {
+    const result = await apiCall("/bills/apply-discount", "POST", {
+      discount: percentageNumber,
+      fromDate,
+      toDate
+    });
+
+    alert(
+      `✅ Items Removed Successfully!\n\n` +
+      `Removal: ${percentageNumber}%\n` +
+      `Date: ${fromDate} → ${toDate}\n` +
+      `Bills Updated: ${result.updated || 0}\n` +
+      `Items Removed Value: ₹${Number(result.removedValue || 0).toFixed(2)}`
     );
-    if (!fromDate) return;
 
-    const toDate = prompt(
-      "Enter TO Date (YYYY-MM-DD)\nExample: 2026-09-30"
-    );
-    if (!toDate) return;
-
-    const discount = prompt("Enter Global Discount %");
-
-    if (!discount || Number(discount) <= 0 || Number(discount) >= 100) {
-      alert("❌ Invalid discount percentage");
-      return;
-    }
-
-    const confirmApply = window.confirm(
-      `Apply ${discount}% discount?\n\n` +
-      `From: ${fromDate}\n` +
-      `To: ${toDate}\n\n` +
-      `Only bills in this date range will be affected.`
-    );
-
-    if (!confirmApply) return;
-
-    try {
-      const result = await apiCall("/bills/apply-discount", "POST", {
-        discount: Number(discount),
-        fromDate,
-        toDate
-      });
-
-      alert(
-        `✅ Discount Applied!\n\n` +
-        `Discount: ${discount}%\n` +
-        `Date: ${fromDate} → ${toDate}\n` +
-        `Bills Updated: ${result.updated}`
-      );
-
-      window.location.reload();
-    } catch (error) {
-      alert("❌ Discount apply nahi hua: " + error.message);
-    }
-  };
-
+    window.location.reload();
+  } catch (error) {
+    alert("❌ Items remove nahi hue: " + error.message);
+  }
+};
 
 const triggerDelete = async () => {
   const pass = prompt("Enter Admin Password");

@@ -1,4 +1,5 @@
 const bcrypt = require("bcryptjs");
+const mongoose = require("mongoose");
 
 const collections = {
   Category: [
@@ -79,6 +80,12 @@ const collections = {
   ]
 };
 
+function getTimeVal(v) {
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === "number") return v;
+  return new Date(v).getTime();
+}
+
 function matchesQuery(item, query) {
   if (!query) return true;
   for (const key in query) {
@@ -88,20 +95,26 @@ function matchesQuery(item, query) {
       if (!matched) return false;
     } else if (key === "customer.phone") {
       if (item.customer?.phone !== val) return false;
+    } else if (key === "customer.name") {
+      if (val instanceof RegExp) {
+        if (!val.test(item.customer?.name || "")) return false;
+      } else if (item.customer?.name !== val) {
+        return false;
+      }
     } else if (val instanceof RegExp) {
       if (!val.test(item[key])) return false;
     } else if (typeof val === "object" && val !== null) {
       if (val.$in && Array.isArray(val.$in)) {
         if (!val.$in.includes(item[key])) return false;
-      } else if (val.$gte || val.$lte) {
-        const itemVal = item[key] instanceof Date ? item[key] : new Date(item[key]);
-        if (val.$gte) {
-          const gteVal = val.$gte instanceof Date ? val.$gte : new Date(val.$gte);
-          if (itemVal < gteVal) return false;
+      } else if (val.$gte !== undefined || val.$lte !== undefined) {
+        const itemTime = getTimeVal(item[key]);
+        if (val.$gte !== undefined) {
+          const gteTime = getTimeVal(val.$gte);
+          if (itemTime < gteTime) return false;
         }
-        if (val.$lte) {
-          const lteVal = val.$lte instanceof Date ? val.$lte : new Date(val.$lte);
-          if (itemVal > lteVal) return false;
+        if (val.$lte !== undefined) {
+          const lteTime = getTimeVal(val.$lte);
+          if (itemTime > lteTime) return false;
         }
       }
     } else {
@@ -113,7 +126,7 @@ function matchesQuery(item, query) {
 
 class QueryChain {
   constructor(data) {
-    this.data = JSON.parse(JSON.stringify(data));
+    this.data = data ? data.slice() : [];
   }
   sort(sortObj) {
     if (sortObj) {
@@ -122,8 +135,12 @@ class QueryChain {
       this.data.sort((a, b) => {
         let valA = a[key];
         let valB = b[key];
-        if (valA instanceof Date) valA = valA.getTime();
-        if (valB instanceof Date) valB = valB.getTime();
+        if (valA instanceof Date || (typeof valA === "string" && key === "date")) {
+          valA = getTimeVal(valA);
+        }
+        if (valB instanceof Date || (typeof valB === "string" && key === "date")) {
+          valB = getTimeVal(valB);
+        }
         if (valA < valB) return dir === -1 ? 1 : -1;
         if (valA > valB) return dir === -1 ? -1 : 1;
         return 0;
@@ -132,7 +149,7 @@ class QueryChain {
     return this;
   }
   skip(n) {
-    if (typeof n === "number") {
+    if (typeof n === "number" && n > 0) {
       this.data = this.data.slice(n);
     }
     return this;
@@ -156,7 +173,7 @@ class QueryChain {
 
 class SingleQueryChain {
   constructor(item) {
-    this.item = item ? JSON.parse(JSON.stringify(item)) : null;
+    this.item = item ? { ...item } : null;
   }
   lean() {
     return this;
@@ -171,7 +188,7 @@ class SingleQueryChain {
 
 class MockDocument {
   constructor(collectionName, data) {
-    Object.assign(this, JSON.parse(JSON.stringify(data)));
+    Object.assign(this, data);
     this._collectionName = collectionName;
   }
   toObject() {
@@ -205,86 +222,155 @@ class MockDocument {
 }
 
 function runBillAggregation(pipeline) {
-  const billsList = collections.Bill || [];
+  let billsList = collections.Bill || [];
+
+  // 1. Process $match stage if present
+  const matchStage = pipeline.find(stage => stage.$match);
+  if (matchStage && matchStage.$match) {
+    billsList = billsList.filter(bill => matchesQuery(bill, matchStage.$match));
+  }
+
+  // 2. Process $group stage
   const groupStage = pipeline.find(stage => stage.$group);
   if (groupStage) {
     const groupFields = groupStage.$group;
-    
-    // Query 1: Daily revenue
-    if (groupFields._id && typeof groupFields._id === 'object' && groupFields._id.$dateToString) {
+
+    // Grouping: Daily revenue
+    if (groupFields._id && typeof groupFields._id === "object" && groupFields._id.$dateToString) {
       const dailyMap = {};
-      billsList.forEach(bill => {
+      for (let i = 0; i < billsList.length; i++) {
+        const bill = billsList[i];
         const d = new Date(bill.date);
         const utc = d.getTime() + d.getTimezoneOffset() * 60000;
         const istDate = new Date(utc + (3600000 * 5.5));
-        const dateStr = istDate.toISOString().split('T')[0];
-        
+        const dateStr = istDate.toISOString().split("T")[0];
+
         if (!dailyMap[dateStr]) {
-          dailyMap[dateStr] = { date: dateStr, revenue: 0, profit: 0, bills: 0 };
+          dailyMap[dateStr] = { date: dateStr, sales: 0, revenue: 0, profit: 0, count: 0 };
         }
-        dailyMap[dateStr].revenue += bill.total;
-        dailyMap[dateStr].profit += bill.profit;
-        dailyMap[dateStr].bills += 1;
-      });
-      
-      const result = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
-      return result;
+        const tot = Number(bill.total) || 0;
+        const prof = Number(bill.profit) || 0;
+        dailyMap[dateStr].revenue += tot;
+        dailyMap[dateStr].sales += tot;
+        dailyMap[dateStr].profit += prof;
+        dailyMap[dateStr].count += 1;
+      }
+
+      return Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
     }
-    
-    // Query 2: Top products
-    if (groupFields._id === "$items.id") {
+
+    // Grouping: Item-wise (topItems or item-report)
+    if (groupFields._id === "$items.name" || groupFields._id === "$items.id") {
       const prodMap = {};
-      billsList.forEach(bill => {
-        bill.items.forEach(item => {
-          const id = item.id;
-          if (!prodMap[id]) {
-            prodMap[id] = { id, name: item.name, revenue: 0, qty: 0 };
+      for (let i = 0; i < billsList.length; i++) {
+        const bill = billsList[i];
+        if (!bill.items || !bill.items.length) continue;
+        for (let j = 0; j < bill.items.length; j++) {
+          const item = bill.items[j];
+          const key = groupFields._id === "$items.name" ? item.name : item.id;
+          if (!key) continue;
+          if (!prodMap[key]) {
+            prodMap[key] = {
+              name: item.name || key,
+              category: item.category || "Other",
+              unit: item.unit || "piece",
+              revenue: 0,
+              qty: 0,
+            };
           }
-          prodMap[id].revenue += item.total || (item.price * item.qty);
-          prodMap[id].qty += item.qty;
-        });
-      });
-      const result = Object.values(prodMap)
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 10);
+          const itemTot = Number(item.total) || (Number(item.price || 0) * Number(item.qty || 0));
+          prodMap[key].revenue += itemTot;
+          prodMap[key].qty += Number(item.qty || 0);
+        }
+      }
+
+      let result = Object.values(prodMap);
+
+      // Sort if $sort specified
+      const sortStage = pipeline.find(stage => stage.$sort);
+      if (sortStage && sortStage.$sort) {
+        const sortKey = Object.keys(sortStage.$sort)[0];
+        const dir = sortStage.$sort[sortKey];
+        result.sort((a, b) => (dir === -1 ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey]));
+      } else {
+        result.sort((a, b) => b.revenue - a.revenue);
+      }
+
+      // Limit if $limit specified
+      const limitStage = pipeline.find(stage => stage.$limit);
+      if (limitStage && typeof limitStage.$limit === "number") {
+        result = result.slice(0, limitStage.$limit);
+      }
+
       return result;
     }
-    
-    // Query 3: Category-wise revenue
+
+    // Grouping: Category-wise
     if (groupFields._id && groupFields._id.$ifNull && groupFields._id.$ifNull[0] === "$items.category") {
       const catMap = {};
-      billsList.forEach(bill => {
-        bill.items.forEach(item => {
+      for (let i = 0; i < billsList.length; i++) {
+        const bill = billsList[i];
+        if (!bill.items) continue;
+        for (let j = 0; j < bill.items.length; j++) {
+          const item = bill.items[j];
           const category = item.category || "Other";
-          if (!catMap[category]) {
-            catMap[category] = { category, revenue: 0 };
-          }
-          catMap[category].revenue += item.total || (item.price * item.qty);
-        });
-      });
+          if (!catMap[category]) catMap[category] = { category, revenue: 0 };
+          catMap[category].revenue += Number(item.total) || (Number(item.price || 0) * Number(item.qty || 0));
+        }
+      }
       return Object.values(catMap);
     }
-    
-    // Query 4: Overall totals
+
+    // Grouping: Overall totals (_id: null)
     if (groupFields._id === null) {
       let revenue = 0;
       let profit = 0;
       let bills = 0;
-      billsList.forEach(bill => {
-        revenue += bill.total;
-        profit += bill.profit;
+      for (let i = 0; i < billsList.length; i++) {
+        const bill = billsList[i];
+        revenue += Number(bill.total) || 0;
+        profit += Number(bill.profit) || 0;
         bills += 1;
-      });
+      }
       return [{ revenue, profit, bills }];
     }
   }
+
+  // Handle Customers aggregation pipeline
+  const firstAddFields = pipeline.find(stage => stage.$addFields && stage.$addFields.cPhone);
+  if (firstAddFields) {
+    const custMap = {};
+    for (let i = 0; i < billsList.length; i++) {
+      const bill = billsList[i];
+      const phone = (bill.customer?.phone || "").trim();
+      const name = (bill.customer?.name || "").trim();
+      if (!phone && !name) continue;
+      const key = phone ? `phone:${phone}` : `name:${name.toLowerCase()}`;
+      if (!custMap[key]) {
+        custMap[key] = {
+          key,
+          phone,
+          name,
+          bills: [],
+          last: bill.date,
+        };
+      }
+      custMap[key].bills.push(bill.id);
+      if (getTimeVal(bill.date) > getTimeVal(custMap[key].last)) {
+        custMap[key].last = bill.date;
+      }
+    }
+    let list = Object.values(custMap);
+    list.sort((a, b) => getTimeVal(b.last) - getTimeVal(a.last));
+    return list.slice(0, 500);
+  }
+
   return [];
 }
 
 function wrapModel(modelName, originalModel) {
   const proxy = new Proxy(originalModel, {
     construct(target, args) {
-      const mongoose = require("mongoose");
       if (mongoose.connection.readyState === 1) {
         return new target(...args);
       } else {
@@ -292,7 +378,6 @@ function wrapModel(modelName, originalModel) {
       }
     },
     get(target, prop) {
-      const mongoose = require("mongoose");
       if (mongoose.connection.readyState === 1) {
         const val = target[prop];
         if (typeof val === "function") {
@@ -300,12 +385,12 @@ function wrapModel(modelName, originalModel) {
         }
         return val;
       }
-      
+
       // Offline mode
       if (prop === "find") {
         return (query) => {
           const list = collections[modelName] || [];
-          const matched = list.filter(item => matchesQuery(item, query));
+          const matched = query ? list.filter(item => matchesQuery(item, query)) : list;
           return new QueryChain(matched);
         };
       }
@@ -319,13 +404,12 @@ function wrapModel(modelName, originalModel) {
       if (prop === "countDocuments") {
         return (query) => {
           const list = collections[modelName] || [];
-          const matched = list.filter(item => matchesQuery(item, query));
-          return Promise.resolve(matched.length);
+          const count = query ? list.filter(item => matchesQuery(item, query)).length : list.length;
+          return Promise.resolve(count);
         };
       }
       if (prop === "create") {
         return async (data) => {
-          const list = collections[modelName] || [];
           const doc = new MockDocument(modelName, data);
           await doc.save();
           return doc;
@@ -336,10 +420,9 @@ function wrapModel(modelName, originalModel) {
           const list = collections[modelName] || [];
           const idx = list.findIndex(item => matchesQuery(item, query));
           if (idx === -1) {
-            // Some calls create if not found, we handle it if requested
             return null;
           }
-          
+
           let updatedItem = { ...list[idx] };
           if (update.$set) {
             Object.assign(updatedItem, update.$set);
@@ -364,7 +447,7 @@ function wrapModel(modelName, originalModel) {
           const list = collections[modelName] || [];
           const idx = list.findIndex(item => matchesQuery(item, query));
           if (idx === -1) return { nModified: 0 };
-          
+
           let updatedItem = { ...list[idx] };
           if (update.$set) {
             Object.assign(updatedItem, update.$set);
@@ -378,8 +461,9 @@ function wrapModel(modelName, originalModel) {
       if (prop === "deleteMany") {
         return async (query) => {
           if (!query || Object.keys(query).length === 0) {
+            const count = collections[modelName].length;
             collections[modelName] = [];
-            return { deletedCount: collections[modelName].length };
+            return { deletedCount: count };
           }
           const list = collections[modelName] || [];
           const remaining = list.filter(item => !matchesQuery(item, query));
@@ -419,7 +503,7 @@ function wrapModel(modelName, originalModel) {
           return Promise.resolve([]);
         };
       }
-      
+
       const val = target[prop];
       if (typeof val === "function") {
         return val.bind(target);

@@ -22,18 +22,19 @@ export default function AnalyticsView() {
   const isMobile = window.innerWidth < 768;
 
   // ─── Fetch overall analytics on mount ──────────────────────────────────────
-  useEffect(() => {
-    async function fetchAnalytics() {
-      setLoading(true);
-      try {
-        const res = await apiCall("/bills/analytics");
-        setAnalytics(res);
-      } catch (err) {
-        console.error("Analytics fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
+  async function fetchAnalytics() {
+    if (!analytics) setLoading(true);
+    try {
+      const res = await apiCall("/bills/analytics");
+      setAnalytics(res);
+    } catch (err) {
+      console.error("Analytics fetch error:", err);
+    } finally {
+      setLoading(false);
     }
+  }
+
+  useEffect(() => {
     fetchAnalytics();
   }, []);
 
@@ -57,29 +58,39 @@ export default function AnalyticsView() {
   }, [period, customFrom, customTo]);
 
   // ─── Fetch date-wise item report ───────────────────────────────────────────
-  useEffect(() => {
-    let ignore = false; // 🛡️ race-condition guard
-
-    async function fetchReport() {
-      setReportLoading(true);
-      try {
-        const params = fromDate && toDate ? `?from=${fromDate}&to=${toDate}` : "";
-        const res = await apiCall(`/bills/item-report${params}`);
-        if (!ignore) {
-          setReportData(res || []);
-        }
-      } catch (err) {
-        if (!ignore) console.error("Item report fetch error:", err);
-      } finally {
-        if (!ignore) setReportLoading(false);
+  async function fetchReport(ignoreRef) {
+    setReportLoading(true);
+    try {
+      const params = fromDate && toDate ? `?from=${fromDate}&to=${toDate}` : "";
+      const res = await apiCall(`/bills/item-report${params}`);
+      if (!ignoreRef || !ignoreRef.current) {
+        setReportData(res || []);
       }
+    } catch (err) {
+      if (!ignoreRef || !ignoreRef.current) console.error("Item report fetch error:", err);
+    } finally {
+      if (!ignoreRef || !ignoreRef.current) setReportLoading(false);
     }
+  }
 
-    fetchReport();
-
+  useEffect(() => {
+    const ignoreRef = { current: false };
+    fetchReport(ignoreRef);
     return () => {
-      ignore = true; // jab fromDate/toDate change ho, purani request ka result ignore karo
+      ignoreRef.current = true;
     };
+  }, [fromDate, toDate]);
+
+  // Listen to background mutation event
+  useEffect(() => {
+    const handleDataChanged = (e) => {
+      if (e.detail?.path?.includes("/bills")) {
+        fetchAnalytics();
+        fetchReport();
+      }
+    };
+    window.addEventListener("dairy_data_changed", handleDataChanged);
+    return () => window.removeEventListener("dairy_data_changed", handleDataChanged);
   }, [fromDate, toDate]);
   // Date-wise totals from report data
   const filteredTotal = useMemo(() => reportData.reduce((s, i) => s + i.revenue, 0), [reportData]);
@@ -164,7 +175,7 @@ export default function AnalyticsView() {
     XLSX.writeFile(wb, `Manish-Dairy-Item-Report-${periodLabelForFile()}.xlsx`);
   };
 
-  if (loading || !analytics) {
+  if (!analytics && loading) {
     return (
       <div style={{ textAlign: "center", padding: "100px 0", fontSize: 15, color: "#8a7e6e" }}>
         ⏳ Loading Manish Dairy Analytics...

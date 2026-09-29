@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Icon from "./Icon";
 import { formatINR, formatDate, formatTime, today, thisMonth } from "../utils/helpers";
 import { apiCall } from "../utils/api";
@@ -16,7 +16,8 @@ export default function SalesView({
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [bills, setBills] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [selected, setSelected] = useState([]);
   const [payFilter, setPayFilter] = useState("ALL");
   const [listLimit, setListLimit] = useState(150);
@@ -31,12 +32,26 @@ export default function SalesView({
     upiCount: 0
   });
 
+  // Listen to background mutation event to auto-refresh current sales view
+  useEffect(() => {
+    const handleDataChanged = (e) => {
+      if (e.detail?.path?.includes("/bills")) {
+        setRefreshKey(k => k + 1);
+      }
+    };
+    window.addEventListener("dairy_data_changed", handleDataChanged);
+    return () => window.removeEventListener("dairy_data_changed", handleDataChanged);
+  }, []);
+
   // ─── Fetch bills and summary from backend ──────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
     async function fetchData() {
-      setLoading(true);
+      // If we don't have any bills yet, show loading
+      if (bills.length === 0 && summary.billsCount === 0) {
+        setLoading(true);
+      }
       const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const yesterdayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000 - 86400000).toISOString().slice(0, 10);
 
@@ -57,7 +72,6 @@ export default function SalesView({
           apiCall(`/bills?${queryParams}&limit=${listLimit}`)
         ]);
 
-        // ✅ Agar filter change ho chuka hai tab tak (stale response), toh ignore karo
         if (cancelled) return;
 
         setSummary(sumData);
@@ -71,23 +85,29 @@ export default function SalesView({
 
     fetchData();
 
-    // ✅ Cleanup — jab filter/date/limit dobara change ho, purani request ko cancel mark karo
     return () => {
       cancelled = true;
     };
-  }, [filter, startDate, endDate, listLimit]);
+  }, [filter, startDate, endDate, listLimit, refreshKey]);
 
-  // ─── Filter list on clientside only by paymentMode ─────────────────────────
-  const filtered = bills.filter((b) => {
-    if (payFilter === "ALL") return true;
-    const mode = b.paymentMode || "CASH";
-    if (mode.startsWith("SPLIT")) {
-      const m = mode.match(/Cash:([\d.]+)\s+UPI:([\d.]+)/i);
-      if (!m) return payFilter === "CASH";
-      return payFilter === "CASH" ? Number(m[1]) > 0 : Number(m[2]) > 0;
-    }
-    return mode === payFilter;
-  });
+  // ─── Filter list on clientside only by paymentMode (memoized) ───────────────
+  const filtered = useMemo(() => {
+    return bills.filter((b) => {
+      if (payFilter === "ALL") return true;
+      const mode = b.paymentMode || "CASH";
+      if (mode.startsWith("SPLIT")) {
+        const m = mode.match(/Cash:([\d.]+)\s+UPI:([\d.]+)/i);
+        if (!m) return payFilter === "CASH";
+        return payFilter === "CASH" ? Number(m[1]) > 0 : Number(m[2]) > 0;
+      }
+      return mode === payFilter;
+    });
+  }, [bills, payFilter]);
+
+  // Memoized sorted bills list to avoid thousands of date allocations per render
+  const sortedBills = useMemo(() => {
+    return [...filtered].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [filtered]);
 
   // KPI card calculations using 100% accurate database-driven summary
   let displaySales = summary.totalSales;
@@ -261,7 +281,7 @@ const checkAdminPassword = () => {
             Koi bill nahi {labels[filter].toLowerCase()} mein
           </div>
         )}
-        {!loading && [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date)).map((b, i) => (
+        {!loading && sortedBills.map((b, i) => (
           <div key={b.id}
             style={{ display: "flex", alignItems: "center", padding: isMobile ? "10px 12px" : "13px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: isMobile ? 8 : 16, flexWrap: "wrap", background: "transparent" }}>
             <div style={{ flex: 1, minWidth: 140 }}>

@@ -44,5 +44,8 @@ billSchema.index({ "customer.phone": 1 });
 // ✅ Index 3: Aggregation pipeline pe help karta hai (category + date)
 billSchema.index({ date: -1, "items.category": 1 });
 
+// ✅ Index 4: Sales filter + payment mode queries
+billSchema.index({ date: -1, paymentMode: 1 });
+
 const model = mongoose.model("Bill", billSchema);
 module.exports = require("../utils/inMemoryDb").wrapModel("Bill", model);

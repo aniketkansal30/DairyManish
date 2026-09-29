@@ -1,24 +1,35 @@
-import React, { Suspense, lazy, useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Login from "./Login";
 
-import { apiCall } from "./utils/api";
+import { apiCall, prefetchApi } from "./utils/api";
 import { today } from "./utils/helpers";
 import { printBill } from "./utils/printBill";
 import Navbar from "./components/Navbar";
 
-// Lazy load — sirf jo view active hai wahi load hoga
-const BillingView = lazy(() => import("./components/BillingView"));
-const ProductsView = lazy(() => import("./components/ProductsView"));
-const SalesView = lazy(() => import("./components/SalesView"));
-const AnalyticsView = lazy(() => import("./components/AnalyticsView"));
-const CustomersView = lazy(() => import("./components/CustomersView"));
+// Direct component imports for instant 0ms tab switching
+import BillingView from "./components/BillingView";
+import ProductsView from "./components/ProductsView";
+import SalesView from "./components/SalesView";
+import AnalyticsView from "./components/AnalyticsView";
+import CustomersView from "./components/CustomersView";
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("dairy_token"));
   const [view, setView] = useState("billing");
+  const [visitedViews, setVisitedViews] = useState(() => new Set(["billing"]));
   const [tapCount, setTapCount] = useState(0);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // Keep track of visited views for instant keep-alive switching
+  useEffect(() => {
+    setVisitedViews((prev) => {
+      if (prev.has(view)) return prev;
+      const next = new Set(prev);
+      next.add(view);
+      return next;
+    });
+  }, [view]);
 
   // Track responsive screen size
   useEffect(() => {
@@ -426,14 +437,16 @@ const triggerDelete = async () => {
     if (token && view === "customers")
       apiCall("/customers").then(setCustomers).catch(() => {});
   }, [view, token]);
-    useEffect(() => {
+  useEffect(() => {
     if (!token) return;
+    const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const t = setTimeout(() => {
-      import("./components/SalesView");
-      import("./components/AnalyticsView");
-      import("./components/CustomersView");
-      import("./components/ProductsView");
-    }, 1500);
+      prefetchApi(`/bills/sales-summary?date=${todayIST}`);
+      prefetchApi(`/bills?date=${todayIST}&limit=150`);
+      prefetchApi("/bills/analytics");
+      prefetchApi(`/bills/item-report?from=${todayIST}&to=${todayIST}`);
+      prefetchApi("/customers");
+    }, 250);
     return () => clearTimeout(t);
   }, [token]);
   // ─── CUSTOMER AUTO-COMPLETE ──────────────────────────────────────────────────
@@ -708,12 +721,8 @@ const triggerDelete = async () => {
           overflow: isMobile ? "visible" : "auto",
         }}
       >
-        <Suspense fallback={
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 60, color: "#8a7e6e", fontSize: 14 }}>
-            Loading...
-          </div>
-        }>
-          {view === "billing" && (
+        {visitedViews.has("billing") && (
+          <div style={{ display: view === "billing" ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
             <BillingView
               products={products}
               filtered={filtered}
@@ -739,8 +748,10 @@ const triggerDelete = async () => {
               editingBillId={editingBillId}
               onCancelEdit={() => { setEditingBillId(null); setCart([]); setView("sales"); }}
             />
-          )}
-          {view === "products" && (
+          </div>
+        )}
+        {visitedViews.has("products") && (
+          <div style={{ display: view === "products" ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
             <ProductsView
               products={products}
               onSave={handleSaveProduct}
@@ -748,26 +759,33 @@ const triggerDelete = async () => {
               dbCats={dbCats}
               setDbCats={setDbCats}
             />
-          )}
-          {view === "sales" && (
+          </div>
+        )}
+        {visitedViews.has("sales") && (
+          <div style={{ display: view === "sales" ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
             <SalesView
               bills={bills}
               onEdit={handleEditBill}
               products={products}
               setView={setView}
               onLoadEdit={loadBillIntoCart}
-             
             />
-          )}
-          {view === "analytics" && <AnalyticsView />}
-          {view === "customers" && (
+          </div>
+        )}
+        {visitedViews.has("analytics") && (
+          <div style={{ display: view === "analytics" ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
+            <AnalyticsView />
+          </div>
+        )}
+        {visitedViews.has("customers") && (
+          <div style={{ display: view === "customers" ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
             <CustomersView
               customers={customers}
               setCart={setCart}
               setView={setView}
             />
-          )}
-        </Suspense>
+          </div>
+        )}
       </div>
     </div>
   );

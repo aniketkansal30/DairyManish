@@ -146,6 +146,9 @@ class QueryChain {
   lean() {
     return this;
   }
+  select() {
+    return this;
+  }
   then(onFulfilled, onRejected) {
     return Promise.resolve(this.data).then(onFulfilled, onRejected);
   }

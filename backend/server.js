@@ -2,6 +2,7 @@ const express = require("express");
 const Bill = require("./models/Bill");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const compression = require("compression");
 
 require("dotenv").config();
 
@@ -9,6 +10,7 @@ const app = express();
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(cors({ origin: "*" }));
+app.use(compression());
 app.use(express.json());
 
 // ─── MongoDB Connection ───────────────────────────────────────────────────────

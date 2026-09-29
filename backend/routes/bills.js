@@ -2,6 +2,13 @@ const router = require("express").Router();
 const authMiddleware = require("../middleware/auth");
 const Bill = require("../models/Bill");
 const Customer = require("../models/Customer");
+const cache = require("../utils/cache");
+
+// Jab bhi bill create/edit/delete ho, cache saaf ho jaye
+router.use((req, res, next) => {
+  if (req.method !== "GET") res.on("finish", () => cache.clear("bills:"));
+  next();
+});
 
 
 // ─── Helper: IST date range ───────────────────────────────────────────────────
@@ -465,6 +472,9 @@ router.post("/apply-discount", authMiddleware, async (req, res) => {
 // ─── GET /api/bills/analytics ─────────────────────────────────────────────────
 router.get("/analytics", authMiddleware, async (req, res) => {
   try {
+    const cached = cache.get("bills:analytics");
+    if (cached) return res.json(cached);
+
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
@@ -537,13 +547,15 @@ router.get("/analytics", authMiddleware, async (req, res) => {
       Bill.find({}).sort({ date: -1 }).limit(20).lean()
     ]);
 
-    res.json({
+    const payload = {
       today: todayRaw[0] || { revenue: 0, profit: 0, bills: 0 },
       allTime: allTimeRaw[0] || { revenue: 0, profit: 0, bills: 0 },
       daily: dailyRaw,
       topItems: topItemsRaw,
       recent: recentRaw
-    });
+    };
+    cache.set("bills:analytics", payload, 60 * 1000);
+    res.json(payload);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -551,6 +563,10 @@ router.get("/analytics", authMiddleware, async (req, res) => {
 // ─── GET /api/bills/item-report ───────────────────────────────────────────────
 router.get("/item-report", authMiddleware, async (req, res) => {
   try {
+    const cacheKey = "bills:item-report:" + req.originalUrl;
+    const cachedReport = cache.get(cacheKey);
+    if (cachedReport) return res.json(cachedReport);
+
     const { from, to } = req.query;
     const match = {};
     if (from && to) match.date = istRange(from, to);
@@ -580,6 +596,7 @@ router.get("/item-report", authMiddleware, async (req, res) => {
       { $sort: { revenue: -1 } },
     ]);
 
+    cache.set(cacheKey, data, 60 * 1000);
     res.json(data);
   } catch (err) {
     console.error("❌ ITEM REPORT ERROR:", err);
@@ -666,6 +683,10 @@ router.delete("/all", authMiddleware, async (req, res) => {
 // SalesView ke KPI cards ke liye summary
 router.get("/sales-summary", authMiddleware, async (req, res) => {
   try {
+    const cacheKey = "bills:summary:" + req.originalUrl;
+    const cachedSummary = cache.get(cacheKey);
+    if (cachedSummary) return res.json(cachedSummary);
+
     const filter = {};
 
     // Date filter
@@ -686,7 +707,9 @@ router.get("/sales-summary", authMiddleware, async (req, res) => {
       );
     }
 
-    const bills = await Bill.find(filter).lean();
+    const bills = await Bill.find(filter)
+      .select("total profit discountAmt paymentMode")
+      .lean();
 
     let totalSales = 0;
     let totalProfit = 0;
@@ -724,18 +747,18 @@ router.get("/sales-summary", authMiddleware, async (req, res) => {
       }
     }
 
-    res.json({
+    const out = {
       totalSales,
       totalProfit,
       totalDiscount,
       billsCount: bills.length,
-
       cashSales,
       cashCount,
-
       upiSales,
       upiCount
-    });
+    };
+    cache.set(cacheKey, out, 30 * 1000);
+    res.json(out);
 
   } catch (err) {
     console.error("❌ SALES SUMMARY ERROR:", err);

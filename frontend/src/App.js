@@ -413,10 +413,7 @@ const triggerDelete = async () => {
         setProducts(prods);
         setDbCats(cats);
         // Bills aur customers background mein load karo
-        const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        apiCall("/bills?limit=250").then(res => setBills(res.bills || res)).catch(() => { });
-        apiCall("/customers").then(custs => setCustomers(custs)).catch(() => { });
-      } catch (e) {
+       } catch (e) {
         setError(
           "Server se connect nahi ho paya. Backend chal raha hai? " + e.message
         );
@@ -425,7 +422,20 @@ const triggerDelete = async () => {
       }
     }
     loadAll(); }, [token]);
-
+  useEffect(() => {
+    if (token && view === "customers")
+      apiCall("/customers").then(setCustomers).catch(() => {});
+  }, [view, token]);
+    useEffect(() => {
+    if (!token) return;
+    const t = setTimeout(() => {
+      import("./components/SalesView");
+      import("./components/AnalyticsView");
+      import("./components/CustomersView");
+      import("./components/ProductsView");
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [token]);
   // ─── CUSTOMER AUTO-COMPLETE ──────────────────────────────────────────────────
   useEffect(() => {
     const phone = customerForm.phone?.trim();
@@ -537,7 +547,6 @@ const triggerDelete = async () => {
     try {
       const saved = await apiCall("/bills", "POST", bill);
       setBills((prev) => [saved, ...prev]);
-      apiCall("/customers").then(setCustomers).catch(() => {});
       printBill(saved);
       setCart([]);
       setCustomerForm({ name: "", phone: "" });

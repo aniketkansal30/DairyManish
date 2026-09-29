@@ -3,7 +3,7 @@ import { CAT_COLORS } from "../utils/constants";
 import { formatINR, formatDate, formatTime, formatQty } from "../utils/helpers";
 import { useState, useMemo, useEffect } from "react";
 import { apiCall } from "../utils/api";
-import * as XLSX from "xlsx";
+
 
 export default function AnalyticsView() {
   const getIndiaDate = (d = new Date()) =>
@@ -122,8 +122,9 @@ export default function AnalyticsView() {
     return `${fromDate} to ${toDate}`;
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!filteredItemData.length) return;
+    const XLSX = await import("xlsx");
 
     // Title / meta rows on top of the sheet
     const metaRows = [

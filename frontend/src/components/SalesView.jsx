@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import Icon from "./Icon";
 import { formatINR, formatDate, formatTime, today, thisMonth } from "../utils/helpers";
 import { apiCall } from "../utils/api";
-import { exportToExcel } from "../utils/exportExcel";
 import { printBill } from "../utils/printBill";
 
 // ─── SALES VIEW ───────────────────────────────────────────────────────────────
@@ -155,6 +154,7 @@ const checkAdminPassword = () => {
         return mode === payFilter;
       });
 
+      const { exportToExcel } = await import("../utils/exportExcel");
       exportToExcel(toExport, filter, filter === "custom" ? (startDate === endDate || !endDate ? startDate : `${startDate}_${endDate}`) : null);
     } catch (e) {
       console.error(e);

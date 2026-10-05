@@ -23,6 +23,7 @@ export default function BillingView({
   editingBillId, onCancelEdit,
 }) {
   const categoryList = useMemo(() => {
+    const cartMap = useMemo(() => new Map(cart.map((i) => [i.id, i])), [cart]);
     const set = new Set(CATEGORY_LIST_DEFAULT);
     if (Array.isArray(dbCats)) {
       dbCats.forEach(c => {
@@ -40,7 +41,7 @@ export default function BillingView({
   const [customDate, setCustomDate] = useState("");
 const [showDatePicker, setShowDatePicker] = useState(false);
   const [popup, setPopup] = useState(null);
-  const [isPrinting, setIsPrinting] = useState(false);
+
   const [paymentMode, setPaymentMode] = useState("CASH");
   const [splitMode, setSplitMode] = useState(false);
   const [cashAmt, setCashAmt] = useState("");
@@ -293,10 +294,7 @@ const [showDatePicker, setShowDatePicker] = useState(false);
             <button onClick={holdBill} style={{ height: 46, padding: "0 14px", borderRadius: 10, background: "#f59e0b", color: "#1a1310", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
               ⏸️ Hold
             </button>
-            <button onClick={() => {
-              if (isPrinting) return;
-              setIsPrinting(true);
-              console.log("customDate being passed:", customDate);
+                        <button onClick={() => {
               checkoutBill(splitMode ? `SPLIT(Cash:${cashAmt||0} UPI:${upiAmt||0})` : paymentMode, customDate || null);
               setPaymentMode("CASH");
               setSplitMode(false);
@@ -304,9 +302,8 @@ const [showDatePicker, setShowDatePicker] = useState(false);
               setUpiAmt("");
               setCustomDate("");
               setShowDatePicker(false);
-              setTimeout(() => setIsPrinting(false), 5000);
             }} style={{ flex: 1, height: 46, borderRadius: 10, background: "#1a1310", color: "#f59e0b", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-              <Icon name="print" size={14} /> {isPrinting ? "⏳ Printing..." : editingBillId ? "💾 Update" : "Print & Save"}
+              <Icon name="print" size={14} /> {editingBillId ? "💾 Update" : "Print & Save"}
             </button>
           </div>
 
@@ -356,7 +353,7 @@ const [showDatePicker, setShowDatePicker] = useState(false);
         {/* Product grid 2-col */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
   {sortedFiltered.map((p) => {
-    const inCart = cart.find((i) => i.id === p.id);
+    const inCart = cartMap.get(p.id);
     const color = CAT_COLORS[p.category] || "#f59e0b";
     return (
       <button key={p.id} onClick={() => openPopup(p)} style={{
@@ -496,7 +493,7 @@ const [showDatePicker, setShowDatePicker] = useState(false);
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8 }}>
   {sortedFiltered.map((p) => {
-    const inCart = cart.find((i) => i.id === p.id);
+    const inCart = cartMap.get(p.id);
     const color = CAT_COLORS[p.category] || "#f59e0b";
     return (
       <button key={p.id} onClick={() => openPopup(p)} style={{

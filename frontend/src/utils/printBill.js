@@ -68,8 +68,8 @@ export function printBill(bill) {
   iframe.contentDocument.open();
   iframe.contentDocument.write(printContent);
   iframe.contentDocument.close();
-  setTimeout(() => {
-    iframe.contentWindow.print();
-    setTimeout(() => document.body.removeChild(iframe), 1000);
-  }, 150);
+    iframe.contentWindow.onafterprint = () => iframe.remove();
+  iframe.contentWindow.focus();
+  iframe.contentWindow.print();
+  setTimeout(() => iframe.remove(), 60000); // safety cleanup
 }

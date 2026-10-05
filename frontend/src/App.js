@@ -12,7 +12,7 @@ import ProductsView from "./components/ProductsView";
 import SalesView from "./components/SalesView";
 import AnalyticsView from "./components/AnalyticsView";
 import CustomersView from "./components/CustomersView";
-import { queueBill, syncPending, getPending, isNetworkError } from "./utils/offlineQueue";
+import { queueBill, syncPending, getPending } from "./utils/offlineQueue";
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("dairy_token"));
@@ -599,29 +599,22 @@ const triggerDelete = async () => {
         customerForm.name || customerForm.phone ? { ...customerForm } : null,
       paymentMode,
     };
-        let toPrint = null;
-    try {
-      if (!navigator.onLine) throw new TypeError("offline");
-      toPrint = await apiCall("/bills", "POST", bill, { timeout: 8000 });
-      setBills((prev) => [toPrint, ...prev]);
-    } catch (e) {
-      if (isNetworkError(e)) {
-        queueBill(bill);     // net nahi: local save, baad me sync
-        toPrint = bill;
-      } else {
-        alert("Bill save karne mein error: " + e.message);
-      }
-    } finally {
-      isSubmittingBill.current = false;
-    }
+            // 1) UI turant free
+    setBills((prev) => [bill, ...prev]);
+    setCart([]);
+    setCustomerForm({ name: "", phone: "" });
+    setDiscount(0);
+    setCategory("Milk");
 
-    if (toPrint) {
-      printBill(toPrint);
-      setCart([]);
-      setCustomerForm({ name: "", phone: "" });
-      setDiscount(0);
-      setCategory("Milk");
-    }
+    // 2) bill pehle device me safe, phir background me server pe
+    queueBill(bill);
+    syncPending();
+
+    // 3) print turant (UI update ke baad)
+    setTimeout(() => printBill(bill), 0);
+
+    // double-click se bachne ke liye chhota lock
+    setTimeout(() => { isSubmittingBill.current = false; }, 300);
   };
 
   // ─── PRODUCT CRUD ───────────────────────────────────────────────────────────
@@ -760,13 +753,11 @@ const triggerDelete = async () => {
           setToken(null);
         }}
       />
-            {(!online || pending > 0) && (
-        <div style={{ background: online ? "#f59e0b" : "#ef4444", color: online ? "#1a1310" : "#fff", textAlign: "center", fontSize: 12, fontWeight: 800, padding: "5px 10px" }}>
-          {!online ? "OFFLINE - bills is device me save ho rahe hain" : "Sync ho raha hai..."}
-          {pending > 0 && ` | ${pending} bill pending`}
+        {(!online || pending > 0) && (
+        <div style={{ position: "fixed", top: 6, left: "50%", transform: "translateX(-50%)", zIndex: 150, background: online ? "#f59e0b" : "#ef4444", color: online ? "#1a1310" : "#fff", fontSize: 11, fontWeight: 800, padding: "3px 12px", borderRadius: 999, pointerEvents: "none", whiteSpace: "nowrap" }}>
+          {!online ? "OFFLINE" : "Sync"}{pending > 0 && ` | ${pending} pending`}
         </div>
       )}
-
             <div
         style={{
           padding: isMobile ? "12px 8px" : "16px 24px",

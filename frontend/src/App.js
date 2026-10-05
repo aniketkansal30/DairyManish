@@ -12,7 +12,7 @@ import ProductsView from "./components/ProductsView";
 import SalesView from "./components/SalesView";
 import AnalyticsView from "./components/AnalyticsView";
 import CustomersView from "./components/CustomersView";
-
+import { queueBill, syncPending, getPending, isNetworkError } from "./utils/offlineQueue";
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("dairy_token"));
@@ -412,6 +412,35 @@ const triggerDelete = async () => {
   const isSubmittingBill = useRef(false);
 
   // ─── LOAD DATA ──────────────────────────────────────────────────────────────
+  const [pending, setPending] = useState(() => getPending().length);
+  const [online, setOnline] = useState(navigator.onLine);
+
+  // products/categories ka local backup
+  useEffect(() => {
+    if (products.length) localStorage.setItem("cache_products", JSON.stringify(products));
+  }, [products]);
+  useEffect(() => {
+    if (dbCats.length) localStorage.setItem("cache_categories", JSON.stringify(dbCats));
+  }, [dbCats]);
+
+  // offline queue sync
+  useEffect(() => {
+    const upd = () => setPending(getPending().length);
+    const goOnline = () => { setOnline(true); syncPending(); };
+    const goOffline = () => setOnline(false);
+    window.addEventListener("offline_queue_changed", upd);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    const iv = setInterval(() => { if (getPending().length) syncPending(); }, 20000);
+    if (token) syncPending();
+    return () => {
+      window.removeEventListener("offline_queue_changed", upd);
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+      clearInterval(iv);
+    };
+  }, [token]);
+
   useEffect(() => {
     if (!token) return;
     async function loadAll() {
@@ -423,16 +452,20 @@ const triggerDelete = async () => {
         ]);
         setProducts(prods);
         setDbCats(cats);
-        // Bills aur customers background mein load karo
-       } catch (e) {
-        setError(
-          "Server se connect nahi ho paya. Backend chal raha hai? " + e.message
-        );
+      } catch (e) {
+        const cp = localStorage.getItem("cache_products");
+        if (cp) {
+          setProducts(JSON.parse(cp));
+          setDbCats(JSON.parse(localStorage.getItem("cache_categories") || "[]"));
+        } else {
+          setError("Server se connect nahi ho paya. Backend chal raha hai? " + e.message);
+        }
       } finally {
         setLoading(false);
       }
     }
-    loadAll(); }, [token]);
+    loadAll();
+  }, [token]);
   useEffect(() => {
     if (token && view === "customers")
       apiCall("/customers").then(setCustomers).catch(() => {});
@@ -566,18 +599,28 @@ const triggerDelete = async () => {
         customerForm.name || customerForm.phone ? { ...customerForm } : null,
       paymentMode,
     };
+        let toPrint = null;
     try {
-      const saved = await apiCall("/bills", "POST", bill);
-      setBills((prev) => [saved, ...prev]);
-      printBill(saved);
+      if (!navigator.onLine) throw new TypeError("offline");
+      toPrint = await apiCall("/bills", "POST", bill, { timeout: 8000 });
+      setBills((prev) => [toPrint, ...prev]);
+    } catch (e) {
+      if (isNetworkError(e)) {
+        queueBill(bill);     // net nahi: local save, baad me sync
+        toPrint = bill;
+      } else {
+        alert("Bill save karne mein error: " + e.message);
+      }
+    } finally {
+      isSubmittingBill.current = false;
+    }
+
+    if (toPrint) {
+      printBill(toPrint);
       setCart([]);
       setCustomerForm({ name: "", phone: "" });
       setDiscount(0);
       setCategory("Milk");
-    } catch (e) {
-      alert("Bill save karne mein error: " + e.message);
-    } finally {
-      isSubmittingBill.current = false;
     }
   };
 
@@ -711,11 +754,18 @@ const triggerDelete = async () => {
       <Navbar
         view={view}
         setView={setView}
-        onLogout={() => {
-          localStorage.clear();
+          onLogout={() => {
+          localStorage.removeItem("dairy_token");
+          localStorage.removeItem("dairy_shop");
           setToken(null);
         }}
       />
+            {(!online || pending > 0) && (
+        <div style={{ background: online ? "#f59e0b" : "#ef4444", color: online ? "#1a1310" : "#fff", textAlign: "center", fontSize: 12, fontWeight: 800, padding: "5px 10px" }}>
+          {!online ? "OFFLINE - bills is device me save ho rahe hain" : "Sync ho raha hai..."}
+          {pending > 0 && ` | ${pending} bill pending`}
+        </div>
+      )}
 
             <div
         style={{

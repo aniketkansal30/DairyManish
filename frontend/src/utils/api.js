@@ -61,6 +61,12 @@ export async function apiCall(path, method = "GET", body = null, options = {}) {
   };
 
   if (body) opts.body = JSON.stringify(body);
+    let timer;
+  if (options.timeout) {
+    const ctrl = new AbortController();
+    opts.signal = ctrl.signal;
+    timer = setTimeout(() => ctrl.abort(), options.timeout);
+  }
 
   const fetchPromise = (async () => {
     try {
@@ -108,7 +114,8 @@ export async function apiCall(path, method = "GET", body = null, options = {}) {
       }
 
       return data;
-    } finally {
+        } finally {
+      if (timer) clearTimeout(timer);
       if (isGet) {
         inFlightRequests.delete(path);
       }

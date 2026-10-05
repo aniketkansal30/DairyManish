@@ -1912,6 +1912,48 @@ app.listen(PORT, "0.0.0.0", () => console.log(`ðŸš€ Server running on http:
 
 
 
+===== FILE: C:\Users\Aniket Kansal\Downloads\DairyManish\frontend\public\sw.js =====
+
+const CACHE = "dairy-shell-v1";
+
+self.addEventListener("install", (e) => {
+  self.skipWaiting();
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["/", "/index.html"])));
+});
+
+self.addEventListener("activate", (e) => {
+  e.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener("fetch", (e) => {
+  const req = e.request;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;     // backend API cache nahi karna
+  if (url.pathname.startsWith("/api")) return;
+
+  e.respondWith(
+    fetch(req)
+      .then((res) => {
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
+        return res;
+      })
+      .catch(() =>
+        caches.match(req).then(
+          (r) => r || (req.mode === "navigate" ? caches.match("/index.html") : null) || Response.error()
+        )
+      )
+  );
+});
+
+
 ===== FILE: C:\Users\Aniket Kansal\Downloads\DairyManish\frontend\src\components\AnalyticsView.jsx =====
 
 import Icon from "./Icon";
@@ -2372,6 +2414,7 @@ export default function BillingView({
   editingBillId, onCancelEdit,
 }) {
   const categoryList = useMemo(() => {
+    const cartMap = useMemo(() => new Map(cart.map((i) => [i.id, i])), [cart]);
     const set = new Set(CATEGORY_LIST_DEFAULT);
     if (Array.isArray(dbCats)) {
       dbCats.forEach(c => {
@@ -2389,7 +2432,7 @@ export default function BillingView({
   const [customDate, setCustomDate] = useState("");
 const [showDatePicker, setShowDatePicker] = useState(false);
   const [popup, setPopup] = useState(null);
-  const [isPrinting, setIsPrinting] = useState(false);
+
   const [paymentMode, setPaymentMode] = useState("CASH");
   const [splitMode, setSplitMode] = useState(false);
   const [cashAmt, setCashAmt] = useState("");
@@ -2642,10 +2685,7 @@ const [showDatePicker, setShowDatePicker] = useState(false);
             <button onClick={holdBill} style={{ height: 46, padding: "0 14px", borderRadius: 10, background: "#f59e0b", color: "#1a1310", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
               â¸ï¸ Hold
             </button>
-            <button onClick={() => {
-              if (isPrinting) return;
-              setIsPrinting(true);
-              console.log("customDate being passed:", customDate);
+                        <button onClick={() => {
               checkoutBill(splitMode ? `SPLIT(Cash:${cashAmt||0} UPI:${upiAmt||0})` : paymentMode, customDate || null);
               setPaymentMode("CASH");
               setSplitMode(false);
@@ -2653,9 +2693,8 @@ const [showDatePicker, setShowDatePicker] = useState(false);
               setUpiAmt("");
               setCustomDate("");
               setShowDatePicker(false);
-              setTimeout(() => setIsPrinting(false), 5000);
             }} style={{ flex: 1, height: 46, borderRadius: 10, background: "#1a1310", color: "#f59e0b", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-              <Icon name="print" size={14} /> {isPrinting ? "â³ Printing..." : editingBillId ? "ðŸ’¾ Update" : "Print & Save"}
+              <Icon name="print" size={14} /> {editingBillId ? "ðŸ’¾ Update" : "Print & Save"}
             </button>
           </div>
 
@@ -2703,29 +2742,32 @@ const [showDatePicker, setShowDatePicker] = useState(false);
         </div>
 
         {/* Product grid 2-col */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
-          {sortedFiltered.map((p) => {
-            const inCart = cart.find((i) => i.id === p.id);
-            return (
-              <button key={p.id} onClick={() => openPopup(p)} style={{
-                background: "#fff", border: `2px solid ${inCart ? CAT_COLORS[p.category] || "#f59e0b" : "#e5e0d8"}`,
-                borderRadius: 12, padding: "10px", textAlign: "left", cursor: "pointer", position: "relative",
-              }}>
-                {inCart && (
-                  <div style={{ position: "absolute", top: 6, right: 6, background: CAT_COLORS[p.category] || "#f59e0b", color: "#fff", borderRadius: 999, fontSize: 10, fontWeight: 800, padding: "1px 6px" }}>
-                    Ã—{formatQty(inCart.qty, inCart.unit)}
-                  </div>
-                )}
-                <div style={{ fontSize: 20, marginBottom: 4 }}>{CAT_ICONS[p.category]}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#1a1310", marginBottom: 1, lineHeight: 1.2 }}>{p.name}</div>
-                <div style={{ fontSize: 11, color: "#8a7e6e", marginBottom: 4 }}>{p.category}</div>
-                <div style={{ fontSize: 14, fontWeight: 900, color: CAT_COLORS[p.category] || "#f59e0b" }}>
-                  â‚¹{p.price}<span style={{ fontSize: 10, fontWeight: 500, color: "#8a7e6e" }}>/{p.unit}</span>
-                </div>
-              </button>
-            );
-          })}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+  {sortedFiltered.map((p) => {
+    const inCart = cartMap.get(p.id);
+    const color = CAT_COLORS[p.category] || "#f59e0b";
+    return (
+      <button key={p.id} onClick={() => openPopup(p)} style={{
+        background: "#fff", border: `2px solid ${inCart ? color : "#e5e0d8"}`,
+        borderRadius: 10, padding: "6px 7px", textAlign: "left", cursor: "pointer",
+        position: "relative", display: "flex", flexDirection: "column",
+        justifyContent: "space-between", minHeight: 68,
+      }}>
+        {inCart && (
+          <div style={{ position: "absolute", top: 3, right: 3, background: color, color: "#fff", borderRadius: 999, fontSize: 9, fontWeight: 800, padding: "1px 5px" }}>
+            Ã—{formatQty(inCart.qty, inCart.unit)}
+          </div>
+        )}
+        <div style={{ fontSize: 13, fontWeight: 800, color: "#1a1310", lineHeight: 1.15, marginBottom: 3 }}>
+          {p.name}
         </div>
+        <div style={{ fontSize: 14, fontWeight: 900, color }}>
+          â‚¹{p.price}<span style={{ fontSize: 9, fontWeight: 600, color: "#8a7e6e" }}>/{p.unit}</span>
+        </div>
+      </button>
+    );
+  })}
+</div>
 
         {filtered.length === 0 && <div style={{ textAlign: "center", color: "#8a7e6e", padding: "30px 0", fontSize: 14 }}>No products found</div>}
 
@@ -2840,31 +2882,32 @@ const [showDatePicker, setShowDatePicker] = useState(false);
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products..."
               style={{ width: "100%", padding: "10px 12px 10px 36px", borderRadius: 10, border: "1px solid #e5e0d8", background: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 12 }}>
-            {sortedFiltered.map((p) => {
-              const inCart = cart.find((i) => i.id === p.id);
-              return (
-                <button key={p.id} onClick={() => openPopup(p)} style={{
-                  background: "#fff", border: `2px solid ${inCart ? CAT_COLORS[p.category] || "#f59e0b" : "#e5e0d8"}`,
-                  borderRadius: 14, padding: "14px 12px", textAlign: "left", cursor: "pointer",
-                  transition: "all 0.15s", position: "relative",
-                  boxShadow: inCart ? `0 0 0 3px ${CAT_COLORS[p.category]}22` : "none",
-                }}>
-                  {inCart && (
-                    <div style={{ position: "absolute", top: 8, right: 8, background: CAT_COLORS[p.category] || "#f59e0b", color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 800, padding: "2px 7px" }}>
-                      Ã—{formatQty(inCart.qty, inCart.unit)}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 22, marginBottom: 6 }}>{CAT_ICONS[p.category]}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310", marginBottom: 2, lineHeight: 1.3 }}>{p.name}</div>
-                  <div style={{ fontSize: 12, color: "#8a7e6e", marginBottom: 6 }}>{p.category}</div>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: CAT_COLORS[p.category] || "#f59e0b" }}>
-                    â‚¹{p.price}<span style={{ fontSize: 11, fontWeight: 500, color: "#8a7e6e" }}>/{p.unit}</span>
-                  </div>
-                </button>
-              );
-            })}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8 }}>
+  {sortedFiltered.map((p) => {
+    const inCart = cartMap.get(p.id);
+    const color = CAT_COLORS[p.category] || "#f59e0b";
+    return (
+      <button key={p.id} onClick={() => openPopup(p)} style={{
+        background: "#fff", border: `2px solid ${inCart ? color : "#e5e0d8"}`,
+        borderRadius: 10, padding: "8px 10px", textAlign: "left", cursor: "pointer",
+        position: "relative", display: "flex", flexDirection: "column",
+        justifyContent: "space-between", minHeight: 78,
+      }}>
+        {inCart && (
+          <div style={{ position: "absolute", top: 4, right: 4, background: color, color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 800, padding: "1px 6px" }}>
+            Ã—{formatQty(inCart.qty, inCart.unit)}
           </div>
+        )}
+        <div style={{ fontSize: 15, fontWeight: 800, color: "#1a1310", lineHeight: 1.2, marginBottom: 4, paddingRight: inCart ? 34 : 0 }}>
+          {p.name}
+        </div>
+        <div style={{ fontSize: 17, fontWeight: 900, color }}>
+          â‚¹{p.price}<span style={{ fontSize: 11, fontWeight: 600, color: "#8a7e6e" }}>/{p.unit}</span>
+        </div>
+      </button>
+    );
+  })}
+</div>
           {filtered.length === 0 && <div style={{ textAlign: "center", color: "#8a7e6e", padding: "40px 0", fontSize: 15 }}>No products found</div>}
         </div>
       </div>
@@ -4098,6 +4141,12 @@ export async function apiCall(path, method = "GET", body = null, options = {}) {
   };
 
   if (body) opts.body = JSON.stringify(body);
+    let timer;
+  if (options.timeout) {
+    const ctrl = new AbortController();
+    opts.signal = ctrl.signal;
+    timer = setTimeout(() => ctrl.abort(), options.timeout);
+  }
 
   const fetchPromise = (async () => {
     try {
@@ -4145,7 +4194,8 @@ export async function apiCall(path, method = "GET", body = null, options = {}) {
       }
 
       return data;
-    } finally {
+        } finally {
+      if (timer) clearTimeout(timer);
       if (isGet) {
         inFlightRequests.delete(path);
       }
@@ -4313,6 +4363,37 @@ export function formatQty(qty, unit) {
 }
 
 
+===== FILE: C:\Users\Aniket Kansal\Downloads\DairyManish\frontend\src\utils\offlineQueue.js =====
+
+import { apiCall } from "./api";
+
+const KEY = "dairy_pending_bills";
+let syncing = false;
+let rerun = false;
+
+export async function syncPending() {
+  if (syncing) { rerun = true; return; }
+  if (!localStorage.getItem("dairy_token")) return;
+  syncing = true;
+  try {
+    do {
+      rerun = false;
+      for (const bill of getPending()) {
+        try {
+          await apiCall("/bills", "POST", bill, { timeout: 15000 });
+          savePending(getPending().filter((b) => b.id !== bill.id));
+        } catch (e) {
+          if (isNetworkError(e)) { rerun = false; return; }
+          if (!localStorage.getItem("dairy_token")) { rerun = false; return; }
+        }
+      }
+    } while (rerun);
+  } finally {
+    syncing = false;
+  }
+}
+
+
 ===== FILE: C:\Users\Aniket Kansal\Downloads\DairyManish\frontend\src\utils\printBill.js =====
 
 import { formatDate, formatTime, formatQty } from "./helpers";
@@ -4385,10 +4466,10 @@ export function printBill(bill) {
   iframe.contentDocument.open();
   iframe.contentDocument.write(printContent);
   iframe.contentDocument.close();
-  setTimeout(() => {
-    iframe.contentWindow.print();
-    setTimeout(() => document.body.removeChild(iframe), 1000);
-  }, 150);
+    iframe.contentWindow.onafterprint = () => iframe.remove();
+  iframe.contentWindow.focus();
+  iframe.contentWindow.print();
+  setTimeout(() => iframe.remove(), 60000); // safety cleanup
 }
 
 
@@ -4408,7 +4489,7 @@ import ProductsView from "./components/ProductsView";
 import SalesView from "./components/SalesView";
 import AnalyticsView from "./components/AnalyticsView";
 import CustomersView from "./components/CustomersView";
-
+import { queueBill, syncPending, getPending } from "./utils/offlineQueue";
 // â”€â”€â”€ MAIN APP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("dairy_token"));
@@ -4808,6 +4889,35 @@ const triggerDelete = async () => {
   const isSubmittingBill = useRef(false);
 
   // â”€â”€â”€ LOAD DATA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const [pending, setPending] = useState(() => getPending().length);
+  const [online, setOnline] = useState(navigator.onLine);
+
+  // products/categories ka local backup
+  useEffect(() => {
+    if (products.length) localStorage.setItem("cache_products", JSON.stringify(products));
+  }, [products]);
+  useEffect(() => {
+    if (dbCats.length) localStorage.setItem("cache_categories", JSON.stringify(dbCats));
+  }, [dbCats]);
+
+  // offline queue sync
+  useEffect(() => {
+    const upd = () => setPending(getPending().length);
+    const goOnline = () => { setOnline(true); syncPending(); };
+    const goOffline = () => setOnline(false);
+    window.addEventListener("offline_queue_changed", upd);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    const iv = setInterval(() => { if (getPending().length) syncPending(); }, 20000);
+    if (token) syncPending();
+    return () => {
+      window.removeEventListener("offline_queue_changed", upd);
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+      clearInterval(iv);
+    };
+  }, [token]);
+
   useEffect(() => {
     if (!token) return;
     async function loadAll() {
@@ -4819,16 +4929,20 @@ const triggerDelete = async () => {
         ]);
         setProducts(prods);
         setDbCats(cats);
-        // Bills aur customers background mein load karo
-       } catch (e) {
-        setError(
-          "Server se connect nahi ho paya. Backend chal raha hai? " + e.message
-        );
+      } catch (e) {
+        const cp = localStorage.getItem("cache_products");
+        if (cp) {
+          setProducts(JSON.parse(cp));
+          setDbCats(JSON.parse(localStorage.getItem("cache_categories") || "[]"));
+        } else {
+          setError("Server se connect nahi ho paya. Backend chal raha hai? " + e.message);
+        }
       } finally {
         setLoading(false);
       }
     }
-    loadAll(); }, [token]);
+    loadAll();
+  }, [token]);
   useEffect(() => {
     if (token && view === "customers")
       apiCall("/customers").then(setCustomers).catch(() => {});
@@ -4962,19 +5076,22 @@ const triggerDelete = async () => {
         customerForm.name || customerForm.phone ? { ...customerForm } : null,
       paymentMode,
     };
-    try {
-      const saved = await apiCall("/bills", "POST", bill);
-      setBills((prev) => [saved, ...prev]);
-      printBill(saved);
-      setCart([]);
-      setCustomerForm({ name: "", phone: "" });
-      setDiscount(0);
-      setCategory("Milk");
-    } catch (e) {
-      alert("Bill save karne mein error: " + e.message);
-    } finally {
-      isSubmittingBill.current = false;
-    }
+            // 1) UI turant free
+    setBills((prev) => [bill, ...prev]);
+    setCart([]);
+    setCustomerForm({ name: "", phone: "" });
+    setDiscount(0);
+    setCategory("Milk");
+
+    // 2) bill pehle device me safe, phir background me server pe
+    queueBill(bill);
+    syncPending();
+
+    // 3) print turant (UI update ke baad)
+    setTimeout(() => printBill(bill), 0);
+
+    // double-click se bachne ke liye chhota lock
+    setTimeout(() => { isSubmittingBill.current = false; }, 300);
   };
 
   // â”€â”€â”€ PRODUCT CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -5107,12 +5224,17 @@ const triggerDelete = async () => {
       <Navbar
         view={view}
         setView={setView}
-        onLogout={() => {
-          localStorage.clear();
+          onLogout={() => {
+          localStorage.removeItem("dairy_token");
+          localStorage.removeItem("dairy_shop");
           setToken(null);
         }}
       />
-
+        {(!online || pending > 0) && (
+        <div style={{ position: "fixed", top: 6, left: "50%", transform: "translateX(-50%)", zIndex: 150, background: online ? "#f59e0b" : "#ef4444", color: online ? "#1a1310" : "#fff", fontSize: 11, fontWeight: 800, padding: "3px 12px", borderRadius: 999, pointerEvents: "none", whiteSpace: "nowrap" }}>
+          {!online ? "OFFLINE" : "Sync"}{pending > 0 && ` | ${pending} pending`}
+        </div>
+      )}
             <div
         style={{
           padding: isMobile ? "12px 8px" : "16px 24px",
@@ -5229,6 +5351,11 @@ root.render(
 // to log results (for example: reportWebVitals(console.log))
 // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals();
+if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
 
 
 

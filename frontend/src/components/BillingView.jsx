@@ -22,8 +22,9 @@ export default function BillingView({
   customerForm, setCustomerForm, checkoutBill, dbCats,
   editingBillId, onCancelEdit,
 }) {
-  const categoryList = useMemo(() => {
     const cartMap = useMemo(() => new Map(cart.map((i) => [i.id, i])), [cart]);
+
+  const categoryList = useMemo(() => {
     const set = new Set(CATEGORY_LIST_DEFAULT);
     if (Array.isArray(dbCats)) {
       dbCats.forEach(c => {

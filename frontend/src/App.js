@@ -519,6 +519,15 @@ const triggerDelete = async () => {
   const cartTotal = cartSubtotal - discountAmt;
 
   // ─── CHECKOUT ───────────────────────────────────────────────────────────────
+  // Half/Full variation ko item name mein jod do (bill print + save dono ke liye)
+  const withVariationNames = (items) =>
+    items.map((i) => {
+      if (!i.selectedVariation) return i;
+      const tag = i.selectedVariation === "half" ? "Half" : "Full";
+      if (/\((Half|Full)\)\s*$/.test(i.name)) return i;
+      return { ...i, name: `${i.name} (${tag})` };
+    });
+
   const checkoutBill = async (paymentMode = "CASH", customDate = null) => {
     if (!cart.length) return;
 
@@ -546,7 +555,7 @@ const triggerDelete = async () => {
     const bill = {
       id: billId,
       date: customDate ? new Date(customDate + "T00:00:00+05:30").toISOString() : new Date().toISOString(),
-      items: cart,
+      items: withVariationNames(cart),
       subtotal: Math.round(cartSubtotal),
       discountPct: discount,
       discountAmt: Math.round(discountAmt),
@@ -618,7 +627,7 @@ const triggerDelete = async () => {
   const handleEditBill = async (billId, updatedItems, updatedDiscountPct) => {
     try {
       const updated = await apiCall(`/bills/${billId}`, "PUT", {
-        items: updatedItems,
+        items: withVariationNames(updatedItems),
         discountPct: updatedDiscountPct,
       });
       setBills((prev) => prev.map((b) => (b.id === billId ? updated : b)));

@@ -21,7 +21,7 @@ export default function ProductsView({ products, onSave, onDelete, dbCats, setDb
   const [editing,      setEditing]      = useState(null);
   const [search,       setSearch]       = useState("");
   const [saving,       setSaving]       = useState(false);
-  const [cats,         setCats]         = useState([...["Sweets", "Snacks", "Tandoor"], ...dbCats]);
+  const [cats,         setCats]         = useState([...new Set(["Sweets", "Snacks", "Tandoor", ...dbCats])]);
   const [newCat,       setNewCat]       = useState("");
   const [showForm,     setShowForm]     = useState(false);
   const mobile = useIsMobile();
@@ -32,7 +32,8 @@ export default function ProductsView({ products, onSave, onDelete, dbCats, setDb
     try {
       await apiCall("/categories", "POST", { name: trimmed });
       setDbCats((prev) => [...prev, trimmed]);
-      setCats((prev)    => [...prev, trimmed]);
+      setCats((prev)    => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
+      setForm((p) => ({ ...p, category: trimmed })); // nayi category auto-select
       setNewCat("");
     } catch (e) {
       alert("Category save nahi hui: " + e.message);
@@ -53,7 +54,25 @@ export default function ProductsView({ products, onSave, onDelete, dbCats, setDb
   const save = async () => {
     if (!form.name || form.price === "" || form.cost === "") return;
     setSaving(true);
-    const ok = await onSave(form, editing);
+    let finalForm = form;
+    const typed = newCat.trim();
+    if (typed) {
+      // Category box mein naam likha hai to pehle category bana do, phir product usi mein jaayega
+      try {
+        if (!cats.includes(typed)) {
+          await apiCall("/categories", "POST", { name: typed });
+          setDbCats((prev) => (prev.includes(typed) ? prev : [...prev, typed]));
+          setCats((prev) => (prev.includes(typed) ? prev : [...prev, typed]));
+        }
+        finalForm = { ...form, category: typed };
+        setNewCat("");
+      } catch (e) {
+        alert("Category save nahi hui: " + e.message);
+        setSaving(false);
+        return;
+      }
+    }
+    const ok = await onSave(finalForm, editing);
     if (ok) {
       setEditing(null);
       setForm({ name: "", category: "Sweets", price: "", cost: "", unit: "kg", hasVariation: false, halfPrice: "", fullPrice: "" });

@@ -69,6 +69,9 @@ const [showDatePicker, setShowDatePicker] = useState(false);
     setCustomerForm({ name: "", phone: "" });
     setDiscount(0);
     setPaymentMode("CASH");
+    setSplitMode(false);
+    setCashAmt("");
+    setUpiAmt("");
   };
 
   const resumeBill = (index) => {
@@ -77,6 +80,9 @@ const [showDatePicker, setShowDatePicker] = useState(false);
     setCustomerForm(held.customerForm);
     setDiscount(held.discount);
     setPaymentMode(held.paymentMode);
+    setSplitMode(false);
+    setCashAmt("");
+    setUpiAmt("");
     setHeldBills((prev) => {
       const updated = prev.filter((_, i) => i !== index);
       localStorage.setItem("heldBills", JSON.stringify(updated));
@@ -293,9 +299,11 @@ const [showDatePicker, setShowDatePicker] = useState(false);
               console.log("customDate being passed:", customDate);
               checkoutBill(splitMode ? `SPLIT(Cash:${cashAmt||0} UPI:${upiAmt||0})` : paymentMode, customDate || null);
               setPaymentMode("CASH");
+              setSplitMode(false);
+              setCashAmt("");
+              setUpiAmt("");
               setCustomDate("");
               setShowDatePicker(false);
-              setPaymentMode("CASH");
               setTimeout(() => setIsPrinting(false), 5000);
             }} style={{ flex: 1, height: 46, borderRadius: 10, background: "#1a1310", color: "#f59e0b", border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
               <Icon name="print" size={14} /> {isPrinting ? "⏳ Printing..." : editingBillId ? "💾 Update" : "Print & Save"}

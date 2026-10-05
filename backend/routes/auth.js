@@ -3,6 +3,7 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
+const authMiddleware = require("../middleware/auth");
 
 // LOGIN
 router.post("/login", async (req, res) => {
@@ -33,6 +34,14 @@ router.post("/register", async (req, res) => {
     res.status(400).json({ error: e.message });
   }
 });
+// VERIFY ADMIN PASSWORD (Analytics unlock ke liye)
+router.post("/verify-admin", authMiddleware, (req, res) => {
+  const expected = process.env.ADMIN_PASSWORD;
+  if (!expected) return res.status(500).json({ error: "ADMIN_PASSWORD server pe set nahi hai" });
+  if (req.body.password !== expected) return res.status(403).json({ error: "Galat password" });
+  res.json({ success: true });
+});
+
 // CHANGE PASSWORD
 router.post("/change-password", async (req, res) => {
   try {

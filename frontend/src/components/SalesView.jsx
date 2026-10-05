@@ -192,7 +192,7 @@ const checkAdminPassword = () => {
   💰 Sales Overview
 </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: isMobile ? "center" : "flex-start" }}>
-          {["today", "yesterday", "month", "all"].map((f) => (
+          {["today", "yesterday", "month"].map((f) => (
             <button key={f} onClick={() => setFilter(f)}
               style={{ padding: "8px 18px", borderRadius: 20, fontWeight: 700, fontSize: 13, cursor: "pointer", border: "1.5px solid", borderColor: filter === f ? "#f59e0b" : "#e5e0d8", background: filter === f ? "#f59e0b" : "#fff", color: filter === f ? "#1a1310" : "#8a7e6e" }}>
               {labels[f]}

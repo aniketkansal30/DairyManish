@@ -64,6 +64,9 @@ billSchema.index({ "customer.phone": 1 });
 // âœ… Index 3: Aggregation pipeline pe help karta hai (category + date)
 billSchema.index({ date: -1, "items.category": 1 });
 
+// âœ… Index 4: Sales filter + payment mode queries
+billSchema.index({ date: -1, paymentMode: 1 });
+
 const model = mongoose.model("Bill", billSchema);
 module.exports = require("../utils/inMemoryDb").wrapModel("Bill", model);
 
@@ -213,6 +216,13 @@ const router = require("express").Router();
 const authMiddleware = require("../middleware/auth");
 const Bill = require("../models/Bill");
 const Customer = require("../models/Customer");
+const cache = require("../utils/cache");
+
+// Jab bhi bill create/edit/delete ho, cache saaf ho jaye
+router.use((req, res, next) => {
+  if (req.method !== "GET") res.on("finish", () => cache.clear("bills:"));
+  next();
+});
 
 
 // â”€â”€â”€ Helper: IST date range â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -676,6 +686,9 @@ router.post("/apply-discount", authMiddleware, async (req, res) => {
 // â”€â”€â”€ GET /api/bills/analytics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get("/analytics", authMiddleware, async (req, res) => {
   try {
+    const cached = cache.get("bills:analytics");
+    if (cached) return res.json(cached);
+
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
@@ -748,13 +761,15 @@ router.get("/analytics", authMiddleware, async (req, res) => {
       Bill.find({}).sort({ date: -1 }).limit(20).lean()
     ]);
 
-    res.json({
+    const payload = {
       today: todayRaw[0] || { revenue: 0, profit: 0, bills: 0 },
       allTime: allTimeRaw[0] || { revenue: 0, profit: 0, bills: 0 },
       daily: dailyRaw,
       topItems: topItemsRaw,
       recent: recentRaw
-    });
+    };
+    cache.set("bills:analytics", payload, 60 * 1000);
+    res.json(payload);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -762,6 +777,10 @@ router.get("/analytics", authMiddleware, async (req, res) => {
 // â”€â”€â”€ GET /api/bills/item-report â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get("/item-report", authMiddleware, async (req, res) => {
   try {
+    const cacheKey = "bills:item-report:" + req.originalUrl;
+    const cachedReport = cache.get(cacheKey);
+    if (cachedReport) return res.json(cachedReport);
+
     const { from, to } = req.query;
     const match = {};
     if (from && to) match.date = istRange(from, to);
@@ -791,6 +810,7 @@ router.get("/item-report", authMiddleware, async (req, res) => {
       { $sort: { revenue: -1 } },
     ]);
 
+    cache.set(cacheKey, data, 60 * 1000);
     res.json(data);
   } catch (err) {
     console.error("âŒ ITEM REPORT ERROR:", err);
@@ -877,6 +897,10 @@ router.delete("/all", authMiddleware, async (req, res) => {
 // SalesView ke KPI cards ke liye summary
 router.get("/sales-summary", authMiddleware, async (req, res) => {
   try {
+    const cacheKey = "bills:summary:" + req.originalUrl;
+    const cachedSummary = cache.get(cacheKey);
+    if (cachedSummary) return res.json(cachedSummary);
+
     const filter = {};
 
     // Date filter
@@ -897,7 +921,9 @@ router.get("/sales-summary", authMiddleware, async (req, res) => {
       );
     }
 
-    const bills = await Bill.find(filter).lean();
+    const bills = await Bill.find(filter)
+      .select("total profit discountAmt paymentMode")
+      .lean();
 
     let totalSales = 0;
     let totalProfit = 0;
@@ -935,18 +961,18 @@ router.get("/sales-summary", authMiddleware, async (req, res) => {
       }
     }
 
-    res.json({
+    const out = {
       totalSales,
       totalProfit,
       totalDiscount,
       billsCount: bills.length,
-
       cashSales,
       cashCount,
-
       upiSales,
       upiCount
-    });
+    };
+    cache.set(cacheKey, out, 30 * 1000);
+    res.json(out);
 
   } catch (err) {
     console.error("âŒ SALES SUMMARY ERROR:", err);
@@ -1009,30 +1035,37 @@ module.exports = router;
 const router = require("express").Router();
 const authMiddleware = require("../middleware/auth");
 const Category = require("../models/Category");
-
-
+const cache = require("../utils/cache");
 
 router.get("/", async (req, res) => {
   try {
+    const cached = cache.get("categories:list");
+    if (cached) return res.json(cached);
+
     const cats = await Category.find().lean();
-    res.json(cats.map(c => c.name));
+    const result = cats.map(c => c.name);
+    cache.set("categories:list", result, 60 * 1000);
+    res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message }); // â† ERROR HANDLING MISSING THA
+    res.status(500).json({ error: err.message });
   }
 });
 
-router.post("/",authMiddleware, async (req, res) => {
+router.post("/", authMiddleware, async (req, res) => {
   try {
     const cat = new Category({ name: req.body.name });
     await cat.save();
+    cache.clear("categories:");
     res.json(cat);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
-router.delete("/:name",authMiddleware, async (req, res) => {
+
+router.delete("/:name", authMiddleware, async (req, res) => {
   try {
     await Category.findOneAndDelete({ name: req.params.name });
+    cache.clear("categories:");
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1132,26 +1165,27 @@ module.exports = router;
 
 ===== FILE: C:\Users\Aniket Kansal\Downloads\DairyManish\backend\routes\products.js =====
 
-const router  = require("express").Router();
+const router = require("express").Router();
 const authMiddleware = require("../middleware/auth");
 const Product = require("../models/Product");
-
-
+const cache = require("../utils/cache");
 
 // GET /api/products
 router.get("/", async (req, res) => {
   try {
-    let products = await Product.find().lean();
+    const cached = cache.get("products:list");
+    if (cached) return res.json(cached);
 
-    
+    let products = await Product.find().lean();
 
     // Sort by numeric value of id (p1, p2, ... p10, p11)
     products.sort((a, b) => {
-      const numA = parseInt(a.id.replace("p", ""));
-      const numB = parseInt(b.id.replace("p", ""));
+      const numA = parseInt(String(a.id || "").replace("p", "")) || 0;
+      const numB = parseInt(String(b.id || "").replace("p", "")) || 0;
       return numA - numB;
     });
 
+    cache.set("products:list", products, 60 * 1000);
     res.json(products);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1159,19 +1193,20 @@ router.get("/", async (req, res) => {
 });
 
 // POST /api/products â€” naya product banao (fixed ID generation)
-router.post("/",authMiddleware, async (req, res) => {
+router.post("/", authMiddleware, async (req, res) => {
   try {
     const allProducts = await Product.find();
 
     // Sab numbers nikalo aur max dhundo (string sort ki problem avoid)
     const maxNum = allProducts.reduce((max, p) => {
-      const num = parseInt(p.id.replace("p", "")) || 0;
+      const num = parseInt(String(p.id || "").replace("p", "")) || 0;
       return num > max ? num : max;
     }, 0);
 
     const newId = `p${maxNum + 1}`;
     const product = new Product({ ...req.body, id: newId });
     await product.save();
+    cache.clear("products:");
     res.status(201).json(product);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -1179,7 +1214,7 @@ router.post("/",authMiddleware, async (req, res) => {
 });
 
 // PUT /api/products/:id
-router.put("/:id",authMiddleware, async (req, res) => {
+router.put("/:id", authMiddleware, async (req, res) => {
   try {
     const product = await Product.findOneAndUpdate(
       { id: req.params.id },
@@ -1187,6 +1222,7 @@ router.put("/:id",authMiddleware, async (req, res) => {
       { new: true, runValidators: true }
     );
     if (!product) return res.status(404).json({ error: "Product not found" });
+    cache.clear("products:");
     res.json(product);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -1194,10 +1230,11 @@ router.put("/:id",authMiddleware, async (req, res) => {
 });
 
 // DELETE /api/products/:id
-router.delete("/:id",authMiddleware, async (req, res) => {
+router.delete("/:id", authMiddleware, async (req, res) => {
   try {
     const product = await Product.findOneAndDelete({ id: req.params.id });
     if (!product) return res.status(404).json({ error: "Product not found" });
+    cache.clear("products:");
     res.json({ message: "Product deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1207,9 +1244,27 @@ router.delete("/:id",authMiddleware, async (req, res) => {
 module.exports = router;
 
 
+===== FILE: C:\Users\Aniket Kansal\Downloads\DairyManish\backend\utils\cache.js =====
+
+const store = new Map();
+module.exports = {
+  get(k) {
+    const e = store.get(k);
+    if (e && e.exp > Date.now()) return e.v;
+    store.delete(k);
+    return null;
+  },
+  set(k, v, ttlMs) { store.set(k, { v, exp: Date.now() + ttlMs }); },
+  clear(prefix = "") {
+    for (const k of [...store.keys()]) if (k.startsWith(prefix)) store.delete(k);
+  },
+};
+
+
 ===== FILE: C:\Users\Aniket Kansal\Downloads\DairyManish\backend\utils\inMemoryDb.js =====
 
 const bcrypt = require("bcryptjs");
+const mongoose = require("mongoose");
 
 const collections = {
   Category: [
@@ -1290,6 +1345,12 @@ const collections = {
   ]
 };
 
+function getTimeVal(v) {
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === "number") return v;
+  return new Date(v).getTime();
+}
+
 function matchesQuery(item, query) {
   if (!query) return true;
   for (const key in query) {
@@ -1299,20 +1360,26 @@ function matchesQuery(item, query) {
       if (!matched) return false;
     } else if (key === "customer.phone") {
       if (item.customer?.phone !== val) return false;
+    } else if (key === "customer.name") {
+      if (val instanceof RegExp) {
+        if (!val.test(item.customer?.name || "")) return false;
+      } else if (item.customer?.name !== val) {
+        return false;
+      }
     } else if (val instanceof RegExp) {
       if (!val.test(item[key])) return false;
     } else if (typeof val === "object" && val !== null) {
       if (val.$in && Array.isArray(val.$in)) {
         if (!val.$in.includes(item[key])) return false;
-      } else if (val.$gte || val.$lte) {
-        const itemVal = item[key] instanceof Date ? item[key] : new Date(item[key]);
-        if (val.$gte) {
-          const gteVal = val.$gte instanceof Date ? val.$gte : new Date(val.$gte);
-          if (itemVal < gteVal) return false;
+      } else if (val.$gte !== undefined || val.$lte !== undefined) {
+        const itemTime = getTimeVal(item[key]);
+        if (val.$gte !== undefined) {
+          const gteTime = getTimeVal(val.$gte);
+          if (itemTime < gteTime) return false;
         }
-        if (val.$lte) {
-          const lteVal = val.$lte instanceof Date ? val.$lte : new Date(val.$lte);
-          if (itemVal > lteVal) return false;
+        if (val.$lte !== undefined) {
+          const lteTime = getTimeVal(val.$lte);
+          if (itemTime > lteTime) return false;
         }
       }
     } else {
@@ -1324,7 +1391,7 @@ function matchesQuery(item, query) {
 
 class QueryChain {
   constructor(data) {
-    this.data = JSON.parse(JSON.stringify(data));
+    this.data = data ? data.slice() : [];
   }
   sort(sortObj) {
     if (sortObj) {
@@ -1333,8 +1400,12 @@ class QueryChain {
       this.data.sort((a, b) => {
         let valA = a[key];
         let valB = b[key];
-        if (valA instanceof Date) valA = valA.getTime();
-        if (valB instanceof Date) valB = valB.getTime();
+        if (valA instanceof Date || (typeof valA === "string" && key === "date")) {
+          valA = getTimeVal(valA);
+        }
+        if (valB instanceof Date || (typeof valB === "string" && key === "date")) {
+          valB = getTimeVal(valB);
+        }
         if (valA < valB) return dir === -1 ? 1 : -1;
         if (valA > valB) return dir === -1 ? -1 : 1;
         return 0;
@@ -1343,7 +1414,7 @@ class QueryChain {
     return this;
   }
   skip(n) {
-    if (typeof n === "number") {
+    if (typeof n === "number" && n > 0) {
       this.data = this.data.slice(n);
     }
     return this;
@@ -1357,6 +1428,9 @@ class QueryChain {
   lean() {
     return this;
   }
+  select() {
+    return this;
+  }
   then(onFulfilled, onRejected) {
     return Promise.resolve(this.data).then(onFulfilled, onRejected);
   }
@@ -1364,7 +1438,7 @@ class QueryChain {
 
 class SingleQueryChain {
   constructor(item) {
-    this.item = item ? JSON.parse(JSON.stringify(item)) : null;
+    this.item = item ? { ...item } : null;
   }
   lean() {
     return this;
@@ -1379,7 +1453,7 @@ class SingleQueryChain {
 
 class MockDocument {
   constructor(collectionName, data) {
-    Object.assign(this, JSON.parse(JSON.stringify(data)));
+    Object.assign(this, data);
     this._collectionName = collectionName;
   }
   toObject() {
@@ -1413,86 +1487,155 @@ class MockDocument {
 }
 
 function runBillAggregation(pipeline) {
-  const billsList = collections.Bill || [];
+  let billsList = collections.Bill || [];
+
+  // 1. Process $match stage if present
+  const matchStage = pipeline.find(stage => stage.$match);
+  if (matchStage && matchStage.$match) {
+    billsList = billsList.filter(bill => matchesQuery(bill, matchStage.$match));
+  }
+
+  // 2. Process $group stage
   const groupStage = pipeline.find(stage => stage.$group);
   if (groupStage) {
     const groupFields = groupStage.$group;
-    
-    // Query 1: Daily revenue
-    if (groupFields._id && typeof groupFields._id === 'object' && groupFields._id.$dateToString) {
+
+    // Grouping: Daily revenue
+    if (groupFields._id && typeof groupFields._id === "object" && groupFields._id.$dateToString) {
       const dailyMap = {};
-      billsList.forEach(bill => {
+      for (let i = 0; i < billsList.length; i++) {
+        const bill = billsList[i];
         const d = new Date(bill.date);
         const utc = d.getTime() + d.getTimezoneOffset() * 60000;
         const istDate = new Date(utc + (3600000 * 5.5));
-        const dateStr = istDate.toISOString().split('T')[0];
-        
+        const dateStr = istDate.toISOString().split("T")[0];
+
         if (!dailyMap[dateStr]) {
-          dailyMap[dateStr] = { date: dateStr, revenue: 0, profit: 0, bills: 0 };
+          dailyMap[dateStr] = { date: dateStr, sales: 0, revenue: 0, profit: 0, count: 0 };
         }
-        dailyMap[dateStr].revenue += bill.total;
-        dailyMap[dateStr].profit += bill.profit;
-        dailyMap[dateStr].bills += 1;
-      });
-      
-      const result = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
-      return result;
+        const tot = Number(bill.total) || 0;
+        const prof = Number(bill.profit) || 0;
+        dailyMap[dateStr].revenue += tot;
+        dailyMap[dateStr].sales += tot;
+        dailyMap[dateStr].profit += prof;
+        dailyMap[dateStr].count += 1;
+      }
+
+      return Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
     }
-    
-    // Query 2: Top products
-    if (groupFields._id === "$items.id") {
+
+    // Grouping: Item-wise (topItems or item-report)
+    if (groupFields._id === "$items.name" || groupFields._id === "$items.id") {
       const prodMap = {};
-      billsList.forEach(bill => {
-        bill.items.forEach(item => {
-          const id = item.id;
-          if (!prodMap[id]) {
-            prodMap[id] = { id, name: item.name, revenue: 0, qty: 0 };
+      for (let i = 0; i < billsList.length; i++) {
+        const bill = billsList[i];
+        if (!bill.items || !bill.items.length) continue;
+        for (let j = 0; j < bill.items.length; j++) {
+          const item = bill.items[j];
+          const key = groupFields._id === "$items.name" ? item.name : item.id;
+          if (!key) continue;
+          if (!prodMap[key]) {
+            prodMap[key] = {
+              name: item.name || key,
+              category: item.category || "Other",
+              unit: item.unit || "piece",
+              revenue: 0,
+              qty: 0,
+            };
           }
-          prodMap[id].revenue += item.total || (item.price * item.qty);
-          prodMap[id].qty += item.qty;
-        });
-      });
-      const result = Object.values(prodMap)
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 10);
+          const itemTot = Number(item.total) || (Number(item.price || 0) * Number(item.qty || 0));
+          prodMap[key].revenue += itemTot;
+          prodMap[key].qty += Number(item.qty || 0);
+        }
+      }
+
+      let result = Object.values(prodMap);
+
+      // Sort if $sort specified
+      const sortStage = pipeline.find(stage => stage.$sort);
+      if (sortStage && sortStage.$sort) {
+        const sortKey = Object.keys(sortStage.$sort)[0];
+        const dir = sortStage.$sort[sortKey];
+        result.sort((a, b) => (dir === -1 ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey]));
+      } else {
+        result.sort((a, b) => b.revenue - a.revenue);
+      }
+
+      // Limit if $limit specified
+      const limitStage = pipeline.find(stage => stage.$limit);
+      if (limitStage && typeof limitStage.$limit === "number") {
+        result = result.slice(0, limitStage.$limit);
+      }
+
       return result;
     }
-    
-    // Query 3: Category-wise revenue
+
+    // Grouping: Category-wise
     if (groupFields._id && groupFields._id.$ifNull && groupFields._id.$ifNull[0] === "$items.category") {
       const catMap = {};
-      billsList.forEach(bill => {
-        bill.items.forEach(item => {
+      for (let i = 0; i < billsList.length; i++) {
+        const bill = billsList[i];
+        if (!bill.items) continue;
+        for (let j = 0; j < bill.items.length; j++) {
+          const item = bill.items[j];
           const category = item.category || "Other";
-          if (!catMap[category]) {
-            catMap[category] = { category, revenue: 0 };
-          }
-          catMap[category].revenue += item.total || (item.price * item.qty);
-        });
-      });
+          if (!catMap[category]) catMap[category] = { category, revenue: 0 };
+          catMap[category].revenue += Number(item.total) || (Number(item.price || 0) * Number(item.qty || 0));
+        }
+      }
       return Object.values(catMap);
     }
-    
-    // Query 4: Overall totals
+
+    // Grouping: Overall totals (_id: null)
     if (groupFields._id === null) {
       let revenue = 0;
       let profit = 0;
       let bills = 0;
-      billsList.forEach(bill => {
-        revenue += bill.total;
-        profit += bill.profit;
+      for (let i = 0; i < billsList.length; i++) {
+        const bill = billsList[i];
+        revenue += Number(bill.total) || 0;
+        profit += Number(bill.profit) || 0;
         bills += 1;
-      });
+      }
       return [{ revenue, profit, bills }];
     }
   }
+
+  // Handle Customers aggregation pipeline
+  const firstAddFields = pipeline.find(stage => stage.$addFields && stage.$addFields.cPhone);
+  if (firstAddFields) {
+    const custMap = {};
+    for (let i = 0; i < billsList.length; i++) {
+      const bill = billsList[i];
+      const phone = (bill.customer?.phone || "").trim();
+      const name = (bill.customer?.name || "").trim();
+      if (!phone && !name) continue;
+      const key = phone ? `phone:${phone}` : `name:${name.toLowerCase()}`;
+      if (!custMap[key]) {
+        custMap[key] = {
+          key,
+          phone,
+          name,
+          bills: [],
+          last: bill.date,
+        };
+      }
+      custMap[key].bills.push(bill.id);
+      if (getTimeVal(bill.date) > getTimeVal(custMap[key].last)) {
+        custMap[key].last = bill.date;
+      }
+    }
+    let list = Object.values(custMap);
+    list.sort((a, b) => getTimeVal(b.last) - getTimeVal(a.last));
+    return list.slice(0, 500);
+  }
+
   return [];
 }
 
 function wrapModel(modelName, originalModel) {
   const proxy = new Proxy(originalModel, {
     construct(target, args) {
-      const mongoose = require("mongoose");
       if (mongoose.connection.readyState === 1) {
         return new target(...args);
       } else {
@@ -1500,7 +1643,6 @@ function wrapModel(modelName, originalModel) {
       }
     },
     get(target, prop) {
-      const mongoose = require("mongoose");
       if (mongoose.connection.readyState === 1) {
         const val = target[prop];
         if (typeof val === "function") {
@@ -1508,12 +1650,12 @@ function wrapModel(modelName, originalModel) {
         }
         return val;
       }
-      
+
       // Offline mode
       if (prop === "find") {
         return (query) => {
           const list = collections[modelName] || [];
-          const matched = list.filter(item => matchesQuery(item, query));
+          const matched = query ? list.filter(item => matchesQuery(item, query)) : list;
           return new QueryChain(matched);
         };
       }
@@ -1527,13 +1669,12 @@ function wrapModel(modelName, originalModel) {
       if (prop === "countDocuments") {
         return (query) => {
           const list = collections[modelName] || [];
-          const matched = list.filter(item => matchesQuery(item, query));
-          return Promise.resolve(matched.length);
+          const count = query ? list.filter(item => matchesQuery(item, query)).length : list.length;
+          return Promise.resolve(count);
         };
       }
       if (prop === "create") {
         return async (data) => {
-          const list = collections[modelName] || [];
           const doc = new MockDocument(modelName, data);
           await doc.save();
           return doc;
@@ -1544,10 +1685,9 @@ function wrapModel(modelName, originalModel) {
           const list = collections[modelName] || [];
           const idx = list.findIndex(item => matchesQuery(item, query));
           if (idx === -1) {
-            // Some calls create if not found, we handle it if requested
             return null;
           }
-          
+
           let updatedItem = { ...list[idx] };
           if (update.$set) {
             Object.assign(updatedItem, update.$set);
@@ -1572,7 +1712,7 @@ function wrapModel(modelName, originalModel) {
           const list = collections[modelName] || [];
           const idx = list.findIndex(item => matchesQuery(item, query));
           if (idx === -1) return { nModified: 0 };
-          
+
           let updatedItem = { ...list[idx] };
           if (update.$set) {
             Object.assign(updatedItem, update.$set);
@@ -1586,8 +1726,9 @@ function wrapModel(modelName, originalModel) {
       if (prop === "deleteMany") {
         return async (query) => {
           if (!query || Object.keys(query).length === 0) {
+            const count = collections[modelName].length;
             collections[modelName] = [];
-            return { deletedCount: collections[modelName].length };
+            return { deletedCount: count };
           }
           const list = collections[modelName] || [];
           const remaining = list.filter(item => !matchesQuery(item, query));
@@ -1627,7 +1768,7 @@ function wrapModel(modelName, originalModel) {
           return Promise.resolve([]);
         };
       }
-      
+
       const val = target[prop];
       if (typeof val === "function") {
         return val.bind(target);
@@ -1665,6 +1806,7 @@ PORT=5000
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "compression": "^1.8.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.18.3",
@@ -1684,6 +1826,7 @@ const express = require("express");
 const Bill = require("./models/Bill");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const compression = require("compression");
 
 require("dotenv").config();
 
@@ -1691,6 +1834,7 @@ const app = express();
 
 // â”€â”€â”€ Middleware â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.use(cors({ origin: "*" }));
+app.use(compression());
 app.use(express.json());
 
 // â”€â”€â”€ MongoDB Connection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1766,7 +1910,7 @@ import { CAT_COLORS } from "../utils/constants";
 import { formatINR, formatDate, formatTime, formatQty } from "../utils/helpers";
 import { useState, useMemo, useEffect } from "react";
 import { apiCall } from "../utils/api";
-import * as XLSX from "xlsx";
+
 
 export default function AnalyticsView() {
   const getIndiaDate = (d = new Date()) =>
@@ -1785,18 +1929,19 @@ export default function AnalyticsView() {
   const isMobile = window.innerWidth < 768;
 
   // â”€â”€â”€ Fetch overall analytics on mount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  useEffect(() => {
-    async function fetchAnalytics() {
-      setLoading(true);
-      try {
-        const res = await apiCall("/bills/analytics");
-        setAnalytics(res);
-      } catch (err) {
-        console.error("Analytics fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
+  async function fetchAnalytics() {
+    if (!analytics) setLoading(true);
+    try {
+      const res = await apiCall("/bills/analytics");
+      setAnalytics(res);
+    } catch (err) {
+      console.error("Analytics fetch error:", err);
+    } finally {
+      setLoading(false);
     }
+  }
+
+  useEffect(() => {
     fetchAnalytics();
   }, []);
 
@@ -1820,29 +1965,39 @@ export default function AnalyticsView() {
   }, [period, customFrom, customTo]);
 
   // â”€â”€â”€ Fetch date-wise item report â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  useEffect(() => {
-    let ignore = false; // ðŸ›¡ï¸ race-condition guard
-
-    async function fetchReport() {
-      setReportLoading(true);
-      try {
-        const params = fromDate && toDate ? `?from=${fromDate}&to=${toDate}` : "";
-        const res = await apiCall(`/bills/item-report${params}`);
-        if (!ignore) {
-          setReportData(res || []);
-        }
-      } catch (err) {
-        if (!ignore) console.error("Item report fetch error:", err);
-      } finally {
-        if (!ignore) setReportLoading(false);
+  async function fetchReport(ignoreRef) {
+    setReportLoading(true);
+    try {
+      const params = fromDate && toDate ? `?from=${fromDate}&to=${toDate}` : "";
+      const res = await apiCall(`/bills/item-report${params}`);
+      if (!ignoreRef || !ignoreRef.current) {
+        setReportData(res || []);
       }
+    } catch (err) {
+      if (!ignoreRef || !ignoreRef.current) console.error("Item report fetch error:", err);
+    } finally {
+      if (!ignoreRef || !ignoreRef.current) setReportLoading(false);
     }
+  }
 
-    fetchReport();
-
+  useEffect(() => {
+    const ignoreRef = { current: false };
+    fetchReport(ignoreRef);
     return () => {
-      ignore = true; // jab fromDate/toDate change ho, purani request ka result ignore karo
+      ignoreRef.current = true;
     };
+  }, [fromDate, toDate]);
+
+  // Listen to background mutation event
+  useEffect(() => {
+    const handleDataChanged = (e) => {
+      if (e.detail?.path?.includes("/bills")) {
+        fetchAnalytics();
+        fetchReport();
+      }
+    };
+    window.addEventListener("dairy_data_changed", handleDataChanged);
+    return () => window.removeEventListener("dairy_data_changed", handleDataChanged);
   }, [fromDate, toDate]);
   // Date-wise totals from report data
   const filteredTotal = useMemo(() => reportData.reduce((s, i) => s + i.revenue, 0), [reportData]);
@@ -1885,8 +2040,9 @@ export default function AnalyticsView() {
     return `${fromDate} to ${toDate}`;
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!filteredItemData.length) return;
+    const XLSX = await import("xlsx");
 
     // Title / meta rows on top of the sheet
     const metaRows = [
@@ -1926,7 +2082,7 @@ export default function AnalyticsView() {
     XLSX.writeFile(wb, `Manish-Dairy-Item-Report-${periodLabelForFile()}.xlsx`);
   };
 
-  if (loading || !analytics) {
+  if (!analytics && loading) {
     return (
       <div style={{ textAlign: "center", padding: "100px 0", fontSize: 15, color: "#8a7e6e" }}>
         â³ Loading Manish Dairy Analytics...
@@ -1939,13 +2095,21 @@ export default function AnalyticsView() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {/* KPI row */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 10 : 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(2, 1fr)", gap: isMobile ? 10 : 16 }}>
         {[
-          { label: "Today Sales", value: formatINR(today.revenue), color: "#2563eb", sub: `${today.bills} bills today` },
-          { label: "Today Profit", value: formatINR(today.profit), color: "#16a34a", sub: `${today.revenue > 0 ? Math.round((today.profit / today.revenue) * 100) : 0}% margin` },
-          { label: "Total Sales", value: formatINR(allTime.revenue), color: "#7c3aed", sub: `${allTime.bills} bills total` },
-          { label: "Total Profit", value: formatINR(allTime.profit), color: "#ea580c", sub: `${allTime.revenue > 0 ? Math.round((allTime.profit / allTime.revenue) * 100) : 0}% margin` },
-        ].map((k) => (
+  {
+    label: "Today Sales",
+    value: formatINR(today.revenue),
+    color: "#2563eb",
+    sub: `${today.bills} bills today`
+  },
+  {
+    label: "Total Sales",
+    value: formatINR(allTime.revenue),
+    color: "#7c3aed",
+    sub: `${allTime.bills} bills total`
+  },
+].map((k) => (
           <div key={k.label} style={{ background: "#fff", borderRadius: 16, padding: "20px", border: "1px solid #e5e0d8" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>{k.label}</div>
             <div style={{ fontSize: 22, fontWeight: 900, color: k.color, marginBottom: 4 }}>{k.value}</div>
@@ -3383,11 +3547,10 @@ export default function ProductsView({ products, onSave, onDelete, dbCats, setDb
 
 ===== FILE: C:\Users\Aniket Kansal\Downloads\DairyManish\frontend\src\components\SalesView.jsx =====
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Icon from "./Icon";
 import { formatINR, formatDate, formatTime, today, thisMonth } from "../utils/helpers";
 import { apiCall } from "../utils/api";
-import { exportToExcel } from "../utils/exportExcel";
 import { printBill } from "../utils/printBill";
 
 // â”€â”€â”€ SALES VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -3402,7 +3565,8 @@ export default function SalesView({
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [bills, setBills] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [selected, setSelected] = useState([]);
   const [payFilter, setPayFilter] = useState("ALL");
   const [listLimit, setListLimit] = useState(150);
@@ -3417,12 +3581,26 @@ export default function SalesView({
     upiCount: 0
   });
 
+  // Listen to background mutation event to auto-refresh current sales view
+  useEffect(() => {
+    const handleDataChanged = (e) => {
+      if (e.detail?.path?.includes("/bills")) {
+        setRefreshKey(k => k + 1);
+      }
+    };
+    window.addEventListener("dairy_data_changed", handleDataChanged);
+    return () => window.removeEventListener("dairy_data_changed", handleDataChanged);
+  }, []);
+
   // â”€â”€â”€ Fetch bills and summary from backend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     let cancelled = false;
 
     async function fetchData() {
-      setLoading(true);
+      // If we don't have any bills yet, show loading
+      if (bills.length === 0 && summary.billsCount === 0) {
+        setLoading(true);
+      }
       const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const yesterdayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000 - 86400000).toISOString().slice(0, 10);
 
@@ -3443,7 +3621,6 @@ export default function SalesView({
           apiCall(`/bills?${queryParams}&limit=${listLimit}`)
         ]);
 
-        // âœ… Agar filter change ho chuka hai tab tak (stale response), toh ignore karo
         if (cancelled) return;
 
         setSummary(sumData);
@@ -3457,23 +3634,29 @@ export default function SalesView({
 
     fetchData();
 
-    // âœ… Cleanup â€” jab filter/date/limit dobara change ho, purani request ko cancel mark karo
     return () => {
       cancelled = true;
     };
-  }, [filter, startDate, endDate, listLimit]);
+  }, [filter, startDate, endDate, listLimit, refreshKey]);
 
-  // â”€â”€â”€ Filter list on clientside only by paymentMode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const filtered = bills.filter((b) => {
-    if (payFilter === "ALL") return true;
-    const mode = b.paymentMode || "CASH";
-    if (mode.startsWith("SPLIT")) {
-      const m = mode.match(/Cash:([\d.]+)\s+UPI:([\d.]+)/i);
-      if (!m) return payFilter === "CASH";
-      return payFilter === "CASH" ? Number(m[1]) > 0 : Number(m[2]) > 0;
-    }
-    return mode === payFilter;
-  });
+  // â”€â”€â”€ Filter list on clientside only by paymentMode (memoized) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const filtered = useMemo(() => {
+    return bills.filter((b) => {
+      if (payFilter === "ALL") return true;
+      const mode = b.paymentMode || "CASH";
+      if (mode.startsWith("SPLIT")) {
+        const m = mode.match(/Cash:([\d.]+)\s+UPI:([\d.]+)/i);
+        if (!m) return payFilter === "CASH";
+        return payFilter === "CASH" ? Number(m[1]) > 0 : Number(m[2]) > 0;
+      }
+      return mode === payFilter;
+    });
+  }, [bills, payFilter]);
+
+  // Memoized sorted bills list to avoid thousands of date allocations per render
+  const sortedBills = useMemo(() => {
+    return [...filtered].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [filtered]);
 
   // KPI card calculations using 100% accurate database-driven summary
   let displaySales = summary.totalSales;
@@ -3540,6 +3723,7 @@ const checkAdminPassword = () => {
         return mode === payFilter;
       });
 
+      const { exportToExcel } = await import("../utils/exportExcel");
       exportToExcel(toExport, filter, filter === "custom" ? (startDate === endDate || !endDate ? startDate : `${startDate}_${endDate}`) : null);
     } catch (e) {
       console.error(e);
@@ -3594,11 +3778,23 @@ const checkAdminPassword = () => {
       {/* KPI cards */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(auto-fill, minmax(200px, 1fr))", gap: isMobile ? 10 : 16 }}>
         {[
-          { label: "Total Sales", value: formatINR(displaySales), color: "#2563eb", icon: "ðŸ’³", sub: `${displayCount} bills` },
-          { label: "Total Profit", value: formatINR(displayProfit), color: "#16a34a", icon: "ðŸ“ˆ", sub: "Calculated profit" },
-          { label: "Discount Given", value: formatINR(displayDiscount), color: "#f59e0b", icon: "ðŸ·ï¸", sub: "Total discounts" },
-          { label: "Avg Bill Value", value: displayCount ? formatINR(displaySales / displayCount) : "â‚¹0.00", color: "#7c3aed", icon: "ðŸ§¾", sub: "per bill" },
-        ].map((k) => (
+  {
+    label: "Total Sales",
+    value: formatINR(displaySales),
+    color: "#2563eb",
+    icon: "ðŸ’³",
+    sub: `${displayCount} bills`
+  },
+  {
+    label: "Avg Bill Value",
+    value: displayCount
+      ? formatINR(displaySales / displayCount)
+      : "â‚¹0.00",
+    color: "#7c3aed",
+    icon: "ðŸ§¾",
+    sub: "per bill"
+  },
+].map((k) => (
           <div key={k.label} style={{ background: "#fff", borderRadius: 16, padding: isMobile ? "14px" : "20px", border: "1px solid #e5e0d8" }}>
             <div style={{ fontSize: isMobile ? 18 : 22, marginBottom: 4 }}>{k.icon}</div>
             <div style={{ fontSize: 10, fontWeight: 700, color: "#8a7e6e", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>{k.label}</div>
@@ -3634,7 +3830,7 @@ const checkAdminPassword = () => {
             Koi bill nahi {labels[filter].toLowerCase()} mein
           </div>
         )}
-        {!loading && [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date)).map((b, i) => (
+        {!loading && sortedBills.map((b, i) => (
           <div key={b.id}
             style={{ display: "flex", alignItems: "center", padding: isMobile ? "10px 12px" : "13px 20px", borderTop: i > 0 ? "1px solid #f0ebe4" : "none", gap: isMobile ? 8 : 16, flexWrap: "wrap", background: "transparent" }}>
             <div style={{ flex: 1, minWidth: 140 }}>
@@ -3692,8 +3888,57 @@ const checkAdminPassword = () => {
 
 import { API } from "./constants";
 
+// â”€â”€â”€ CLIENT-SIDE IN-MEMORY CACHE & REQUEST DEDUPLICATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const responseCache = new Map();
+const inFlightRequests = new Map();
+
+function getTtlForPath(path) {
+  if (path.startsWith("/categories") || path.startsWith("/products")) return 60 * 1000;
+  if (path.startsWith("/bills/analytics") || path.startsWith("/bills/item-report")) return 30 * 1000;
+  if (path.startsWith("/bills/sales-summary")) return 20 * 1000;
+  if (path.startsWith("/customers")) return 30 * 1000;
+  if (path.startsWith("/bills")) return 15 * 1000;
+  return 10 * 1000;
+}
+
+export function clearApiCache(prefix = "") {
+  if (!prefix) {
+    responseCache.clear();
+    return;
+  }
+  for (const key of responseCache.keys()) {
+    if (key.includes(prefix)) {
+      responseCache.delete(key);
+    }
+  }
+}
+
+export function prefetchApi(path) {
+  if (responseCache.has(path)) {
+    const entry = responseCache.get(path);
+    if (Date.now() - entry.timestamp < entry.ttl) return Promise.resolve(entry.data);
+  }
+  return apiCall(path, "GET").catch(() => {});
+}
+
 // â”€â”€â”€ API HELPER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-export async function apiCall(path, method = "GET", body = null) {
+export async function apiCall(path, method = "GET", body = null, options = {}) {
+  const isGet = method.toUpperCase() === "GET";
+  const bypassCache = options.bypassCache === true;
+
+  // 1. Check client-side memory cache for GET requests
+  if (isGet && !bypassCache) {
+    const cached = responseCache.get(path);
+    if (cached && Date.now() - cached.timestamp < cached.ttl) {
+      return cached.data;
+    }
+
+    // 2. In-flight request deduplication for GET requests
+    if (inFlightRequests.has(path)) {
+      return inFlightRequests.get(path);
+    }
+  }
+
   const token = localStorage.getItem("dairy_token");
   const opts = {
     method,
@@ -3705,20 +3950,66 @@ export async function apiCall(path, method = "GET", body = null) {
 
   if (body) opts.body = JSON.stringify(body);
 
-  const res = await fetch(`${API}${path}`, opts);
+  const fetchPromise = (async () => {
+    try {
+      const res = await fetch(`${API}${path}`, opts);
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Server error" }));
-    const errMsg = err.error || `HTTP ${res.status}`;
-    if (res.status === 401 || errMsg === "Invalid or expired token" || errMsg === "Login required" || errMsg.toLowerCase().includes("token")) {
-      localStorage.removeItem("dairy_token");
-      window.dispatchEvent(new Event("auth_expired"));
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Server error" }));
+        const errMsg = err.error || `HTTP ${res.status}`;
+        if (
+          res.status === 401 ||
+          errMsg === "Invalid or expired token" ||
+          errMsg === "Login required" ||
+          errMsg.toLowerCase().includes("token")
+        ) {
+          localStorage.removeItem("dairy_token");
+          window.dispatchEvent(new Event("auth_expired"));
+        }
+        throw new Error(errMsg);
+      }
+
+      const data = await res.json();
+
+      // Store successful GET in cache
+      if (isGet) {
+        responseCache.set(path, {
+          data,
+          timestamp: Date.now(),
+          ttl: getTtlForPath(path),
+        });
+      } else {
+        // Auto-invalidate cache on mutations
+        if (path.includes("/bills")) clearApiCache("/bills");
+        if (path.includes("/products")) clearApiCache("/products");
+        if (path.includes("/categories")) {
+          clearApiCache("/categories");
+          clearApiCache("/products");
+        }
+        if (path.includes("/customers")) clearApiCache("/customers");
+
+        window.dispatchEvent(
+          new CustomEvent("dairy_data_changed", {
+            detail: { path, method },
+          })
+        );
+      }
+
+      return data;
+    } finally {
+      if (isGet) {
+        inFlightRequests.delete(path);
+      }
     }
-    throw new Error(errMsg);
+  })();
+
+  if (isGet && !bypassCache) {
+    inFlightRequests.set(path, fetchPromise);
   }
 
-  return res.json();
+  return fetchPromise;
 }
+
 
 
 ===== FILE: C:\Users\Aniket Kansal\Downloads\DairyManish\frontend\src\utils\constants.js =====
@@ -3954,27 +4245,38 @@ export function printBill(bill) {
 
 ===== FILE: C:\Users\Aniket Kansal\Downloads\DairyManish\frontend\src\App.js =====
 
-import React, { Suspense, lazy, useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Login from "./Login";
 
-import { apiCall } from "./utils/api";
+import { apiCall, prefetchApi } from "./utils/api";
 import { today } from "./utils/helpers";
 import { printBill } from "./utils/printBill";
 import Navbar from "./components/Navbar";
 
-// Lazy load â€” sirf jo view active hai wahi load hoga
-const BillingView = lazy(() => import("./components/BillingView"));
-const ProductsView = lazy(() => import("./components/ProductsView"));
-const SalesView = lazy(() => import("./components/SalesView"));
-const AnalyticsView = lazy(() => import("./components/AnalyticsView"));
-const CustomersView = lazy(() => import("./components/CustomersView"));
+// Direct component imports for instant 0ms tab switching
+import BillingView from "./components/BillingView";
+import ProductsView from "./components/ProductsView";
+import SalesView from "./components/SalesView";
+import AnalyticsView from "./components/AnalyticsView";
+import CustomersView from "./components/CustomersView";
 
 // â”€â”€â”€ MAIN APP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("dairy_token"));
   const [view, setView] = useState("billing");
+  const [visitedViews, setVisitedViews] = useState(() => new Set(["billing"]));
   const [tapCount, setTapCount] = useState(0);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // Keep track of visited views for instant keep-alive switching
+  useEffect(() => {
+    setVisitedViews((prev) => {
+      if (prev.has(view)) return prev;
+      const next = new Set(prev);
+      next.add(view);
+      return next;
+    });
+  }, [view]);
 
   // Track responsive screen size
   useEffect(() => {
@@ -4369,10 +4671,7 @@ const triggerDelete = async () => {
         setProducts(prods);
         setDbCats(cats);
         // Bills aur customers background mein load karo
-        const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        apiCall("/bills?limit=250").then(res => setBills(res.bills || res)).catch(() => { });
-        apiCall("/customers").then(custs => setCustomers(custs)).catch(() => { });
-      } catch (e) {
+       } catch (e) {
         setError(
           "Server se connect nahi ho paya. Backend chal raha hai? " + e.message
         );
@@ -4381,7 +4680,22 @@ const triggerDelete = async () => {
       }
     }
     loadAll(); }, [token]);
-
+  useEffect(() => {
+    if (token && view === "customers")
+      apiCall("/customers").then(setCustomers).catch(() => {});
+  }, [view, token]);
+  useEffect(() => {
+    if (!token) return;
+    const todayIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const t = setTimeout(() => {
+      prefetchApi(`/bills/sales-summary?date=${todayIST}`);
+      prefetchApi(`/bills?date=${todayIST}&limit=150`);
+      prefetchApi("/bills/analytics");
+      prefetchApi(`/bills/item-report?from=${todayIST}&to=${todayIST}`);
+      prefetchApi("/customers");
+    }, 250);
+    return () => clearTimeout(t);
+  }, [token]);
   // â”€â”€â”€ CUSTOMER AUTO-COMPLETE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const phone = customerForm.phone?.trim();
@@ -4493,7 +4807,6 @@ const triggerDelete = async () => {
     try {
       const saved = await apiCall("/bills", "POST", bill);
       setBills((prev) => [saved, ...prev]);
-      apiCall("/customers").then(setCustomers).catch(() => {});
       printBill(saved);
       setCart([]);
       setCustomerForm({ name: "", phone: "" });
@@ -4655,12 +4968,8 @@ const triggerDelete = async () => {
           overflow: isMobile ? "visible" : "auto",
         }}
       >
-        <Suspense fallback={
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 60, color: "#8a7e6e", fontSize: 14 }}>
-            Loading...
-          </div>
-        }>
-          {view === "billing" && (
+        {visitedViews.has("billing") && (
+          <div style={{ display: view === "billing" ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
             <BillingView
               products={products}
               filtered={filtered}
@@ -4686,8 +4995,10 @@ const triggerDelete = async () => {
               editingBillId={editingBillId}
               onCancelEdit={() => { setEditingBillId(null); setCart([]); setView("sales"); }}
             />
-          )}
-          {view === "products" && (
+          </div>
+        )}
+        {visitedViews.has("products") && (
+          <div style={{ display: view === "products" ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
             <ProductsView
               products={products}
               onSave={handleSaveProduct}
@@ -4695,26 +5006,33 @@ const triggerDelete = async () => {
               dbCats={dbCats}
               setDbCats={setDbCats}
             />
-          )}
-          {view === "sales" && (
+          </div>
+        )}
+        {visitedViews.has("sales") && (
+          <div style={{ display: view === "sales" ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
             <SalesView
               bills={bills}
               onEdit={handleEditBill}
               products={products}
               setView={setView}
               onLoadEdit={loadBillIntoCart}
-             
             />
-          )}
-          {view === "analytics" && <AnalyticsView />}
-          {view === "customers" && (
+          </div>
+        )}
+        {visitedViews.has("analytics") && (
+          <div style={{ display: view === "analytics" ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
+            <AnalyticsView />
+          </div>
+        )}
+        {visitedViews.has("customers") && (
+          <div style={{ display: view === "customers" ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
             <CustomersView
               customers={customers}
               setCart={setCart}
               setView={setView}
             />
-          )}
-        </Suspense>
+          </div>
+        )}
       </div>
     </div>
   );

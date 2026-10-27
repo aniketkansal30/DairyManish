@@ -31,3 +31,15 @@ export function formatQty(qty, unit) {
     return qty < 1 ? `${Math.round(qty * 1000)} ml` : `${+qty.toFixed(3)} L`;
   return `${qty} ${unit}`;
 }
+// Naye `variations` array ko use karta hai, purane Half/Full products ke liye fallback bhi hai
+export function getVariations(p) {
+  if (!p) return [];
+  if (Array.isArray(p.variations) && p.variations.length) return p.variations;
+  if (p.hasVariation && (p.halfPrice || p.fullPrice)) {
+    return [
+      { label: "Half", price: p.halfPrice },
+      { label: "Full", price: p.fullPrice },
+    ];
+  }
+  return [];
+}

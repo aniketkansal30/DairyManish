@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import Icon from "./Icon";
 import { apiCall } from "../utils/api";
-import { CAT_COLORS } from "../utils/constants";
+import { CAT_COLORS, VARIATION_PRESETS } from "../utils/constants";
+import { getVariations } from "../utils/helpers";
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
@@ -16,7 +17,7 @@ function useIsMobile() {
 export default function ProductsView({ products, onSave, onDelete, dbCats, setDbCats }) {
   const [form, setForm] = useState({
     name: "", category: "Sweets", price: "", cost: "",
-    unit: "kg", hasVariation: false, halfPrice: "", fullPrice: "",
+    unit: "kg", hasVariation: false, variations: [],
   });
   const [editing,      setEditing]      = useState(null);
   const [search,       setSearch]       = useState("");
@@ -53,6 +54,10 @@ export default function ProductsView({ products, onSave, onDelete, dbCats, setDb
 
   const save = async () => {
     if (!form.name || form.price === "" || form.cost === "") return;
+    if (form.hasVariation && !(form.variations || []).some((v) => v.label && v.label.trim() && +v.price > 0)) {
+      alert("Variation ON hai. Kam se kam ek option (label + price) daalo ya OFF kar do.");
+      return;
+    }
     setSaving(true);
     let finalForm = form;
     const typed = newCat.trim();
@@ -75,7 +80,7 @@ export default function ProductsView({ products, onSave, onDelete, dbCats, setDb
     const ok = await onSave(finalForm, editing);
     if (ok) {
       setEditing(null);
-      setForm({ name: "", category: "Sweets", price: "", cost: "", unit: "kg", hasVariation: false, halfPrice: "", fullPrice: "" });
+      setForm({ name: "", category: "Sweets", price: "", cost: "", unit: "kg", hasVariation: false, variations: [] });
       if (mobile) setShowForm(false);
     }
     setSaving(false);
@@ -83,7 +88,7 @@ export default function ProductsView({ products, onSave, onDelete, dbCats, setDb
 
   const edit = (p) => {
     setEditing(p.id);
-    setForm({ name: p.name, category: p.category, price: p.price, cost: p.cost, unit: p.unit, hasVariation: p.hasVariation || false, halfPrice: p.halfPrice || "", fullPrice: p.fullPrice || "" });
+    setForm({ name: p.name, category: p.category, price: p.price, cost: p.cost, unit: p.unit, hasVariation: getVariations(p).length > 0, variations: getVariations(p).map((v) => ({ label: v.label, price: v.price })) });
     if (mobile) setShowForm(true);
   };
 
@@ -161,7 +166,7 @@ export default function ProductsView({ products, onSave, onDelete, dbCats, setDb
 
       {/* Variation */}
       <div style={{ marginBottom: 16 }}>
-        <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 0.5, textTransform: "uppercase" }}>Half / Full Variation</label>
+        <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", letterSpacing: 0.5, textTransform: "uppercase" }}>Variations (Half/Full, Small/Big, Pack...)</label>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
           <button
             onClick={() => setForm((p) => ({ ...p, hasVariation: !p.hasVariation }))}
@@ -169,20 +174,38 @@ export default function ProductsView({ products, onSave, onDelete, dbCats, setDb
           >
             {form.hasVariation ? "✅ ON" : "OFF"}
           </button>
-          <span style={{ fontSize: 12, color: "#8a7e6e" }}>Toggle for Tandoor/Gravy items</span>
+          <span style={{ fontSize: 12, color: "#8a7e6e" }}>Size / weight / pack options</span>
         </div>
-        {form.hasVariation && (
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e" }}>HALF Price (₹)</label>
-              <input type="number" value={form.halfPrice} onChange={(e) => setForm((p) => ({ ...p, halfPrice: e.target.value }))} placeholder="e.g. 130"
-                style={{ width: "100%", padding: "8px 10px", border: "1.5px solid #f59e0b", borderRadius: 8, fontSize: 14, outline: "none", marginTop: 4, boxSizing: "border-box" }} />
+                {form.hasVariation && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 11, color: "#8a7e6e", marginBottom: 6 }}>Quick preset (tap karo):</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+              {VARIATION_PRESETS.map((g) => (
+                <button key={g.name}
+                  onClick={() => setForm((p) => ({ ...p, variations: g.labels.map((l) => ({ label: l, price: "" })) }))}
+                  style={{ padding: "5px 10px", borderRadius: 20, border: "1px solid #f59e0b", background: "#fff8ee", color: "#92400e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                  {g.name}
+                </button>
+              ))}
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e" }}>FULL Price (₹)</label>
-              <input type="number" value={form.fullPrice} onChange={(e) => setForm((p) => ({ ...p, fullPrice: e.target.value }))} placeholder="e.g. 230"
-                style={{ width: "100%", padding: "8px 10px", border: "1.5px solid #f59e0b", borderRadius: 8, fontSize: 14, outline: "none", marginTop: 4, boxSizing: "border-box" }} />
-            </div>
+            {(form.variations || []).map((v, i) => (
+              <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+                <input value={v.label} placeholder="Label (e.g. Small)"
+                  onChange={(e) => setForm((p) => ({ ...p, variations: p.variations.map((x, j) => j === i ? { ...x, label: e.target.value } : x) }))}
+                  style={{ flex: 1.3, minWidth: 0, padding: "8px 10px", border: "1.5px solid #f59e0b", borderRadius: 8, fontSize: 13, outline: "none" }} />
+                <input type="number" value={v.price} placeholder="₹ Price"
+                  onChange={(e) => setForm((p) => ({ ...p, variations: p.variations.map((x, j) => j === i ? { ...x, price: e.target.value } : x) }))}
+                  style={{ flex: 1, minWidth: 0, padding: "8px 10px", border: "1.5px solid #f59e0b", borderRadius: 8, fontSize: 13, outline: "none" }} />
+                <button onClick={() => setForm((p) => ({ ...p, variations: p.variations.filter((_, j) => j !== i) }))}
+                  style={{ width: 32, height: 34, borderRadius: 8, border: "1px solid #fca5a5", background: "#fff", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Icon name="close" size={13} />
+                </button>
+              </div>
+            ))}
+            <button onClick={() => setForm((p) => ({ ...p, variations: [...(p.variations || []), { label: "", price: "" }] }))}
+              style={{ padding: "7px 14px", borderRadius: 8, border: "1.5px dashed #8a7e6e", background: "#fff", color: "#4a3f35", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              + Custom option
+            </button>
           </div>
         )}
       </div>
@@ -195,7 +218,7 @@ export default function ProductsView({ products, onSave, onDelete, dbCats, setDb
 
       <div style={{ display: "flex", gap: 8 }}>
         {(editing || mobile) && (
-          <button onClick={() => { setEditing(null); setForm({ name: "", category: "Sweets", price: "", cost: "", unit: "kg", hasVariation: false, halfPrice: "", fullPrice: "" }); if (mobile) setShowForm(false); }}
+          <button onClick={() => { setEditing(null); setForm({ name: "", category: "Sweets", price: "", cost: "", unit: "kg", hasVariation: false, variations: [] }); if (mobile) setShowForm(false); }}
             style={{ flex: "0 0 44px", height: 44, borderRadius: 10, border: "1px solid #e5e0d8", background: "#fff", cursor: "pointer", color: "#8a7e6e", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="close" size={16} />
           </button>
@@ -237,7 +260,7 @@ export default function ProductsView({ products, onSave, onDelete, dbCats, setDb
               style={{ width: "100%", padding: "10px 12px 10px 36px", borderRadius: 10, border: "1px solid #e5e0d8", background: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
           </div>
           {mobile && (
-            <button onClick={() => { setEditing(null); setForm({ name: "", category: "Sweets", price: "", cost: "", unit: "kg", hasVariation: false, halfPrice: "", fullPrice: "" }); setShowForm(true); }}
+            <button onClick={() => { setEditing(null); setForm({ name: "", category: "Sweets", price: "", cost: "", unit: "kg", hasVariation: false, variations: [] }); setShowForm(true); }}
               style={{ flexShrink: 0, padding: "10px 16px", background: "#1a1310", color: "#f59e0b", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
               <Icon name="plus" size={15} /> Add
             </button>

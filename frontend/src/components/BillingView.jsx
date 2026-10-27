@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import Icon from "./Icon";
 import { CAT_ICONS, CAT_COLORS } from "../utils/constants";
-import { formatINR, formatQty } from "../utils/helpers";
+import { formatINR, formatQty, getVariations } from "../utils/helpers";
 
 const popBtn = {
   width: 44, height: 44, borderRadius: 10,
@@ -96,19 +96,25 @@ const [showDatePicker, setShowDatePicker] = useState(false);
     return [...filtered].sort((a, b) => a.name.localeCompare(b.name));
   }, [filtered]);
 
-  const openPopup = (product) => {
-    const cartId = popup?.selectedVariation ? `${product.id}_${product.selectedVariation}` : product.id;
-    const existing = cart.find((i) => i.id === cartId);
+    const openPopup = (product) => {
+    const baseId = product.baseId || product.id;
+    const existing = cart.find((i) => i.id === product.id);
     setPopup({
       ...product,
+      baseId,
       tempQty: existing ? existing.qty : product.unit === "piece" ? 1 : 0,
       tempAmt: "",
-      selectedVariation: product.hasVariation ? existing?.selectedVariation || null : null,
+      selectedVariation: getVariations(product).length ? (existing?.selectedVariation || product.selectedVariation || null) : null,
     });
   };
 
   const confirmPopup = () => {
     if (!popup) return;
+    const baseId = popup.baseId || popup.id;
+    if (getVariations(popup).length && !popup.selectedVariation) {
+      alert("Pehle variation select karo");
+      return;
+    }
     let qty, overrideTotal = null;
     if (popup.tempAmt !== "" && popup.tempAmt !== undefined && +popup.tempAmt > 0) {
       if (popup.price > 0) qty = +((+popup.tempAmt / popup.price).toFixed(3));
@@ -117,8 +123,8 @@ const [showDatePicker, setShowDatePicker] = useState(false);
       qty = parseFloat(popup.tempQty) || 0;
     }
     if (qty <= 0) { updateQty(popup.id, 0); setPopup(null); return; }
-    const cartId = popup.selectedVariation ? `${popup.id}_${popup.selectedVariation}` : popup.id;
-    const cartItem = { ...popup, cartId, id: cartId };
+    const cartId = popup.selectedVariation ? `${baseId}_${popup.selectedVariation}` : baseId;
+    const cartItem = { ...popup, baseId, cartId, id: cartId };
     const inCart = cart.find((i) => i.id === cartId);
     if (!inCart) addToCart(cartItem);
     if (overrideTotal !== null) {
@@ -128,6 +134,28 @@ const [showDatePicker, setShowDatePicker] = useState(false);
   };
 
   // ─── CART PANEL (shared between mobile & desktop) ─────────────────────────
+  const renderVariationPicker = () => {
+    const vars = getVariations(popup);
+    if (!vars.length) return null;
+    return (
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#8a7e6e", textTransform: "uppercase", marginBottom: 8 }}>Variation chuno</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {vars.map((v) => {
+            const active = popup.selectedVariation === v.label;
+            return (
+              <button key={v.label}
+                onClick={() => setPopup((p) => ({ ...p, tempQty: 1, tempAmt: "", selectedVariation: v.label, price: v.price }))}
+                style={{ flex: "1 1 80px", padding: "10px 8px", borderRadius: 10, fontWeight: 900, fontSize: 13, cursor: "pointer", border: "2px solid", borderColor: active ? "#f59e0b" : "#e5e0d8", background: active ? "#1a1310" : "#f8f5f0", color: active ? "#f59e0b" : "#4a3f35" }}>
+                {v.label}<br /><span style={{ fontSize: 12, fontWeight: 700 }}>₹{v.price}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const CartPanel = (
     <div style={{
       background: "#fff", borderRadius: 18, border: "1px solid #e5e0d8", overflow: "hidden",
@@ -220,7 +248,7 @@ const [showDatePicker, setShowDatePicker] = useState(false);
           }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1310", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {item.name}{item.selectedVariation ? ` (${item.selectedVariation === "half" ? "Half" : "Full"})` : ""}
+                {item.name}{item.selectedVariation ? ` (${item.selectedVariation})` : ""}
               </div>
               <div style={{ fontSize: 11, color: "#8a7e6e", marginTop: 2 }}>
                 {formatQty(item.qty, item.unit)} × ₹{item.price}
@@ -310,7 +338,7 @@ const [showDatePicker, setShowDatePicker] = useState(false);
 
           {customerForm.phone && (
             <button onClick={() => {
-              const msg = `*MANISH DAIRY*\nJail Chungi, Meerut\n\n${cart.map((i) => `${i.name} x${formatQty(i.qty, i.unit)} = ${formatINR(i.total)}`).join("\n")}\n\nSubtotal: ${formatINR(cartSubtotal)}${discount > 0 ? `\nDiscount (${discount}%): -${formatINR(discountAmt)}` : ""}\n*TOTAL: ${formatINR(cartTotal)}*\n\nThank you! 🥛`;
+              const msg = `*MANISH DAIRY*\nJail Chungi, Meerut\n\n${cart.map((i) => `${i.name}${i.selectedVariation ? ` (${i.selectedVariation})` : ""} x${formatQty(i.qty, i.unit)} = ${formatINR(i.total)}`).join("\n")}\n\nSubtotal: ${formatINR(cartSubtotal)}${discount > 0 ? `\nDiscount (${discount}%): -${formatINR(discountAmt)}` : ""}\n*TOTAL: ${formatINR(cartTotal)}*\n\nThank you! 🥛`;
               window.open(`https://wa.me/91${customerForm.phone}?text=${encodeURIComponent(msg)}`);
             }} style={{ marginTop: 8, width: "100%", padding: "11px", borderRadius: 10, background: "#25d366", color: "#fff", border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
               <Icon name="whatsapp" size={14} /> Send on WhatsApp
@@ -399,21 +427,7 @@ const [showDatePicker, setShowDatePicker] = useState(false);
                   <Icon name="close" size={20} />
                 </button>
               </div>
-              {popup.hasVariation && (
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#8a7e6e", textTransform: "uppercase", marginBottom: 8 }}>Half ya Full?</div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => setPopup((p) => ({ ...p, tempQty: 1, tempAmt: "", selectedVariation: "half", price: p.halfPrice }))}
-                      style={{ flex: 1, padding: "12px", borderRadius: 10, fontWeight: 900, fontSize: 14, cursor: "pointer", border: "2px solid", borderColor: popup.selectedVariation === "half" ? "#f59e0b" : "#e5e0d8", background: popup.selectedVariation === "half" ? "#1a1310" : "#f8f5f0", color: popup.selectedVariation === "half" ? "#f59e0b" : "#4a3f35" }}>
-                      HALF<br /><span style={{ fontSize: 12 }}>₹{popup.halfPrice}</span>
-                    </button>
-                    <button onClick={() => setPopup((p) => ({ ...p, tempQty: 1, tempAmt: "", selectedVariation: "full", price: p.fullPrice }))}
-                      style={{ flex: 1, padding: "12px", borderRadius: 10, fontWeight: 900, fontSize: 14, cursor: "pointer", border: "2px solid", borderColor: popup.selectedVariation === "full" ? "#ef4444" : "#e5e0d8", background: popup.selectedVariation === "full" ? "#ef4444" : "#f8f5f0", color: popup.selectedVariation === "full" ? "#fff" : "#4a3f35" }}>
-                      FULL<br /><span style={{ fontSize: 12 }}>₹{popup.fullPrice}</span>
-                    </button>
-                  </div>
-                </div>
-              )}
+                            {renderVariationPicker()}
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: "#8a7e6e", textTransform: "uppercase", marginBottom: 8 }}>
                   {popup.unit === "piece" ? "Kitne piece?" : "Kitna weight?"}
@@ -539,21 +553,7 @@ const [showDatePicker, setShowDatePicker] = useState(false);
                 <Icon name="close" size={20} />
               </button>
             </div>
-            {popup.hasVariation && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Half ya Full?</div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button onClick={() => setPopup((p) => ({ ...p, tempQty: 1, tempAmt: "", selectedVariation: "half", price: p.halfPrice }))}
-                    style={{ flex: 1, padding: "14px", borderRadius: 12, fontWeight: 900, fontSize: 15, cursor: "pointer", border: "2px solid", borderColor: popup.selectedVariation === "half" ? "#f59e0b" : "#e5e0d8", background: popup.selectedVariation === "half" ? "#1a1310" : "#f8f5f0", color: popup.selectedVariation === "half" ? "#f59e0b" : "#4a3f35" }}>
-                    HALF<br /><span style={{ fontSize: 13, fontWeight: 700 }}>₹{popup.halfPrice}</span>
-                  </button>
-                  <button onClick={() => setPopup((p) => ({ ...p, tempQty: 1, tempAmt: "", selectedVariation: "full", price: p.fullPrice }))}
-                    style={{ flex: 1, padding: "14px", borderRadius: 12, fontWeight: 900, fontSize: 15, cursor: "pointer", border: "2px solid", borderColor: popup.selectedVariation === "full" ? "#ef4444" : "#e5e0d8", background: popup.selectedVariation === "full" ? "#ef4444" : "#f8f5f0", color: popup.selectedVariation === "full" ? "#fff" : "#4a3f35" }}>
-                    FULL<br /><span style={{ fontSize: 13, fontWeight: 700 }}>₹{popup.fullPrice}</span>
-                  </button>
-                </div>
-              </div>
-            )}
+                          {renderVariationPicker()}
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#8a7e6e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
                 {popup.unit === "piece" ? "Kitne piece?" : "Kitna weight?"}

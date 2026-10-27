@@ -556,8 +556,8 @@ const triggerDelete = async () => {
   const withVariationNames = (items) =>
     items.map((i) => {
       if (!i.selectedVariation) return i;
-      const tag = i.selectedVariation === "half" ? "Half" : "Full";
-      if (/\((Half|Full)\)\s*$/.test(i.name)) return i;
+      const tag = i.selectedVariation === "half" ? "Half" : i.selectedVariation === "full" ? "Full" : i.selectedVariation;
+      if (i.name.endsWith(` (${tag})`)) return i;
       return { ...i, name: `${i.name} (${tag})` };
     });
 
@@ -626,7 +626,12 @@ const triggerDelete = async () => {
           price: +formData.price,
           cost: +formData.cost,
           hasVariation: formData.hasVariation,
-          halfPrice: +formData.halfPrice || 0,
+          variations: formData.hasVariation
+            ? (formData.variations || [])
+                .filter((v) => v.label && v.label.trim() && +v.price > 0)
+                .map((v) => ({ label: v.label.trim(), price: +v.price }))
+            : [],
+          halfPrice: 0,
           fullPrice: +formData.fullPrice || 0,
         });
         setProducts((prev) =>
@@ -639,7 +644,7 @@ const triggerDelete = async () => {
           cost: +formData.cost,
           hasVariation: formData.hasVariation,
           halfPrice: +formData.halfPrice || 0,
-          fullPrice: +formData.fullPrice || 0,
+          fullPrice: 0,
         });
         setProducts((prev) => [...prev, created]);
       }

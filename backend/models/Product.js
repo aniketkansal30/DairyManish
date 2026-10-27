@@ -11,6 +11,15 @@ const productSchema = new mongoose.Schema(
 
     // --- HALF / FULL VARIATION ---
     hasVariation: { type: Boolean, default: false },
+    variations: {
+      type: [
+        new mongoose.Schema(
+          { label: { type: String, required: true }, price: { type: Number, required: true } },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
     halfPrice:    { type: Number, default: 0 },
     fullPrice:    { type: Number, default: 0 },
   },
